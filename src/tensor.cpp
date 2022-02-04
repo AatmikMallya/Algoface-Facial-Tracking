@@ -4,6 +4,14 @@
 #include <opencv2/core/types.hpp>
 #include <opencv2/core/mat.hpp>
 
+#include <easy3d/viewer/viewer.h>
+#include <easy3d/renderer/drawable_lines.h>
+#include <easy3d/renderer/drawable_points.h>
+#include <easy3d/renderer/drawable_triangles.h>
+#include <easy3d/core/types.h>
+
+#define NUM_OF_VERTICES 11510
+
 // Reads vertices from each expression for each user in the warehouse
 void buildRawTensor(string& warehousePath, string& outfile, tensor3& rawTensor) {
     warehousePath += "Tester_";
@@ -76,12 +84,13 @@ void loadShapeTensor(string& SHAPE_TENSOR_PATH, tensor3& shapeTensor) {
 }
 
 void buildShapeTensor(tensor3& rawTensor, string& outfile, tensor3& shapeTensor) {
-    int shapeVerts[] = {10739, 3988, 3918, 3860, 10539, 489, 399, 3607, 9079, 9104, 1926, 6745, 2094, 2071, 9248, 9246, 7161, 7169, 1987, 7044, 6867, 697, 712, 10846, 3982, 10718, 4080, 3937, 192, 743, 6062, 10683, 3257, 4337, 10500, 4392, 8859, 4352, 10285, 10820, 3272, 750, 6057, 2103, 9296, 9224, 7276, 10407, 2176, 280, 9446, 7245, 7224, 4225, 9039, 10459, 3525, 6274, 6415, 9032, 6465, 6313, 7122, 8972, 3264, 3695, 3628, 1875, 8864, 6058, 1627, 6090, 6083};
-    //int shapeVerts[] = {634, 786, 834, 846, 950, 966, 1017, 1164, 1298, 1312, 1355, 1526, 1538, 1608, 1618, 1688, 1705, 2004, 2152, 2159, 2259, 2324, 2364, 2505, 2714, 2873, 2982, 2989, 3036, 3040, 3151, 3162, 3177, 3179, 3224, 3239, 3260, 5444, 6588, 6608, 6609, 6678, 6799, 6818, 7183, 7293, 7342, 7377, 7464, 7529, 7579, 7683, 7903, 7963, 7999, 8110, 8240, 8243, 8263, 8285, 8333, 8675, 8727, 8742, 8766, 8781, 8830, 8875, 8886, 8905, 8940, 8953, 8971};
+    int shapeVerts[] = { 3984,10818,499,10543,413,3867,10574,9053,6698,1929,1927,6747,9205,7112,9380,3981,4277,10854,708,10742,4159,7135,9413,2138,2127,1986,6969,4437,760,4387,4346,10885,4370,766,4393,7330,7236,7275,9471,7271,7284,2191,7256,4227,294,279,3564,10461,8948,6418,6464,6441,6312,9236,8972,3262,3676,182,1596,1607,6575,1633,8864,6644,1790,3224,3270,251,1672,1621,6262,6162,10346,
+    };
+    int len = sizeof(shapeVerts) / sizeof(*shapeVerts);
 
     for (int i = 0; i < 150; i++) {
         for (int j = 0; j < 47; j++) {
-            for (int k = 0; k < 73; k++) {
+            for (int k = 0; k < len; k++) {
                 shapeTensor(i, j, k) = rawTensor(i, j, shapeVerts[k]);
             }
         }
@@ -140,4 +149,110 @@ vector<cv::Point2f> readLandmarksFromFile_2(const std::string& path, const cv::M
 
     return lms;
 
+}
+
+vector<uint32_t> readMeshTriangleIndicesFromFile(const std::string& path) {
+
+    FILE* file = fopen(path.c_str(), "r");
+    if (file == NULL) {
+        printf("Impossible to open the file !\n");
+        exit(-1);
+    }
+
+    vector<uint32_t> indices;
+    indices.reserve(50000);
+
+    while (true) {
+
+        char lineHeader[128];
+        int res = fscanf(file, "%s", lineHeader);
+        if (res == EOF)
+            break; // EOF = End Of File. Quit the loop.
+
+        if (strcmp(lineHeader, "f") == 0) {
+
+            unsigned int vertexIndex[4], uvIndex[4], normalIndex[4];
+
+            int matches = fscanf(file, "%d/%d/%d %d/%d/%d %d/%d/%d %d/%d/%d\n",
+                &vertexIndex[0], &uvIndex[0], &normalIndex[0],
+                &vertexIndex[1], &uvIndex[1], &normalIndex[1],
+                &vertexIndex[2], &uvIndex[2], &normalIndex[2],
+                &vertexIndex[3], &uvIndex[3], &normalIndex[3]
+            );
+
+            for (int i = 0; i < 4; i++) {
+                vertexIndex[i] -= 1;     // obj file indices start from 1
+                uvIndex[i] -= 1;
+                normalIndex[i] -= 1;
+            }
+
+            //====== change from quads to triangle
+            indices.push_back(vertexIndex[0]);
+            indices.push_back(vertexIndex[1]);
+            indices.push_back(vertexIndex[2]);
+            indices.push_back(vertexIndex[2]);
+            indices.push_back(vertexIndex[3]);
+            indices.push_back(vertexIndex[0]);
+
+
+            if (matches != 12) {
+                cout << "ERROR: couldn't read the faces! number of quads didn't match" << endl;
+                exit(-1);
+            }
+
+        }
+
+    }
+
+    return indices;
+}
+
+vector<easy3d::vec3> readFace3DFromObj(std::string path) {
+
+    std::ifstream infile(path);
+    if (infile.fail()) {
+        std::cerr << "ERROR: couldn't open the Obj file to read the face from" << endl;
+        exit(-1);
+    }
+
+    vector<easy3d::vec3> faceVerts;
+    faceVerts.reserve(NUM_OF_VERTICES);
+
+    for (int i = 0; i < NUM_OF_VERTICES; i++) {
+        std::string hay;
+        std::getline(infile, hay, ' ');
+        std::getline(infile, hay, ' ');
+        float x = std::stof(hay);
+        std::getline(infile, hay, ' ');
+        float y = std::stof(hay);
+        std::getline(infile, hay);
+        float z = std::stof(hay);
+
+        faceVerts.push_back(easy3d::vec3(x, y, z));
+    }
+
+    infile.close();
+
+    return faceVerts;
+}
+
+vector<int> readVertexIdFromFile(std::string path) {
+
+    std::ifstream infile(path);
+    if (infile.fail()) {
+        std::cerr << "ERROR: couldn't open the landmark vertex file " << endl;
+        exit(-1);
+    }
+    std::string temp;
+    std::getline(infile, temp);
+    int numLms = std::stoi(temp);
+    vector<int> vk(numLms);
+    for (int i = 0; i < numLms; i++) {
+        std::getline(infile, temp, ',');
+        vk[i] = std::stoi(temp);
+        std::getline(infile, temp);
+    }
+    infile.close();
+
+    return vk;
 }
