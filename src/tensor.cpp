@@ -4,6 +4,14 @@
 #include <opencv2/core/types.hpp>
 #include <opencv2/core/mat.hpp>
 
+#include <easy3d/viewer/viewer.h>
+#include <easy3d/renderer/drawable_lines.h>
+#include <easy3d/renderer/drawable_points.h>
+#include <easy3d/renderer/drawable_triangles.h>
+#include <easy3d/core/types.h>
+
+#define NUM_OF_VERTICES 11510
+
 // Reads vertices from each expression for each user in the warehouse
 void buildRawTensor(string& warehousePath, string& outfile, tensor3& rawTensor) {
     warehousePath += "Tester_";
@@ -16,9 +24,9 @@ void buildRawTensor(string& warehousePath, string& outfile, tensor3& rawTensor) 
         fp = fopen(fileName.c_str(), "rb");
 
         int nShapes = 0, nVerts = 0, nFaces = 0;
-        fread( &nShapes, sizeof(int), 1, fp );	  // nShape = 46
-        fread( &nVerts, sizeof(int), 1, fp );	  // nVerts = 11510
-        fread( &nFaces, sizeof(int), 1, fp );	  // nFaces = 11540
+        fread(&nShapes, sizeof(int), 1, fp);	  // nShape = 46
+        fread(&nVerts, sizeof(int), 1, fp);	  // nVerts = 11510
+        fread(&nFaces, sizeof(int), 1, fp);	  // nFaces = 11540
 
         for (int j = 0; j < 47; ++j)
             for (int k = 0; k < 11510; ++k)
@@ -48,16 +56,16 @@ void loadRawTensor(const string& filename, tensor3& tensor) {
     for (int i = 0; i < 150; i++)
         for (int j = 0; j < 47; j++)
             for (int k = 0; k < 11510; k++)
-                file.read(reinterpret_cast<char *>(&tensor(i, j, k)), sizeof(Vector3f));
+                file.read(reinterpret_cast<char*>(&tensor(i, j, k)), sizeof(Vector3f));
 
     file.close();
 }
 
 // Prints every vertex in the core tensor (81,145,500 vertices)
 void displayEntireTensor(tensor3& tensor) {
-    for(int i = 0; i < 150; i++) {
-        for(int j = 0; j <47; j++) {
-            for(int k = 0; k < 11510; k++) {
+    for (int i = 0; i < 150; i++) {
+        for (int j = 0; j < 47; j++) {
+            for (int k = 0; k < 11510; k++) {
                 cout << "User " << i << ", Expression " << j << ", Vertex " << k << ": " << tensor(i, j, k) << endl;
             }
         }
@@ -70,17 +78,14 @@ void loadShapeTensor(string& SHAPE_TENSOR_PATH, tensor3& shapeTensor) {
     for (int i = 0; i < 150; i++)
         for (int j = 0; j < 47; j++)
             for (int k = 0; k < 73; k++)
-                file.read(reinterpret_cast<char *>(&shapeTensor(i, j, k)), sizeof(Vector3f));
+                file.read(reinterpret_cast<char*>(&shapeTensor(i, j, k)), sizeof(Vector3f));
 
     file.close();
 }
 
 void buildShapeTensor(tensor3& rawTensor, string& outfile, tensor3& shapeTensor) {
-    int shapeVerts[] = {179, 214, 323, 379, 510, 755, 765, 766, 767, 1642, 1717, 1933, 2094, 2122, 2336, 3185, 3226, 3239,
-                        3272, 3434, 3441, 3982, 4088, 4213, 4246, 4250, 4267, 4340, 5546, 6074, 6090, 6119, 6139, 6265,
-                        6348, 6350, 6503, 6542, 6826, 6870, 6986, 7122, 7140, 7161, 7165, 7238, 7256, 7281, 7284, 7288,
-                        7292, 7385, 8801, 8802, 8814, 8865, 8948, 8972, 8978, 9053, 9175, 9249, 10297, 10334, 10453,
-                        10575, 10629, 10682, 10684, 10760, 10820, 10844, 10892};
+    int shapeVerts[] = { 3984,10818,499,10543,413,3867,10574,9053,6698,1929,1927,6747,9205,7112,9380,3981,4277,10854,708,10742,4159,7135,9413,2138,2127,1986,6969,4437,760,4387,4346,10885,4370,766,4393,7330,7236,7275,9471,7271,7284,2191,7256,4227,294,279,3564,10461,8948,6418,6464,6441,6312,9236,8972,3262,3676,182,1596,1607,6575,1633,8864,6644,1790,3224,3270,251,1672,1621,6262,6162,10346
+    };
     int len = sizeof(shapeVerts) / sizeof(*shapeVerts);
 
     for (int i = 0; i < 150; i++) {
@@ -106,7 +111,6 @@ void writeShapeTensor(const string& filename, tensor3& tensor) {
 
 
 vector<cv::Point2f> readLandmarksFromFile_2(const std::string& path, const cv::Mat& image) {
-
     vector<int> orderedIndices = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,  //face contour
                                    21, 22, 23, 24, 25, 26,                            //left eyebrow
                                    18, 17, 16, 15, 20, 19,                            //right eyebrow
@@ -120,7 +124,7 @@ vector<cv::Point2f> readLandmarksFromFile_2(const std::string& path, const cv::M
 
     std::ifstream infile(path);
     if (infile.fail()) {
-        std::cerr << "ERROR: unable to open the landmarks file, refer to file " << __FILE__ << ", line " << __LINE__ << endl;
+        std::cerr << "ERROR: unable to open the ladndmarks file, refer to file " << __FILE__ << ", line " << __LINE__ << endl;
         exit(-1);
     }
     std::string hay;
@@ -137,7 +141,7 @@ vector<cv::Point2f> readLandmarksFromFile_2(const std::string& path, const cv::M
     infile.close();
 
     int nPoints = orderedIndices.size();
-    vector<cv::Point2f> lms(nPoints * 2);
+    vector<cv::Point2f> lms(nPoints);
     for (int i = 0; i < nPoints; i++) {
         lms[i].x = origLms[orderedIndices[i]];
         lms[i].y = origLms[orderedIndices[i] + nOrigPoints];
@@ -145,4 +149,110 @@ vector<cv::Point2f> readLandmarksFromFile_2(const std::string& path, const cv::M
 
     return lms;
 
+}
+
+vector<uint32_t> readMeshTriangleIndicesFromFile(const std::string& path) {
+
+    FILE* file = fopen(path.c_str(), "r");
+    if (file == NULL) {
+        printf("Impossible to open the file !\n");
+        exit(-1);
+    }
+
+    vector<uint32_t> indices;
+    indices.reserve(50000);
+
+    while (true) {
+
+        char lineHeader[128];
+        int res = fscanf(file, "%s", lineHeader);
+        if (res == EOF)
+            break; // EOF = End Of File. Quit the loop.
+
+        if (strcmp(lineHeader, "f") == 0) {
+
+            unsigned int vertexIndex[4], uvIndex[4], normalIndex[4];
+
+            int matches = fscanf(file, "%d/%d/%d %d/%d/%d %d/%d/%d %d/%d/%d\n",
+                &vertexIndex[0], &uvIndex[0], &normalIndex[0],
+                &vertexIndex[1], &uvIndex[1], &normalIndex[1],
+                &vertexIndex[2], &uvIndex[2], &normalIndex[2],
+                &vertexIndex[3], &uvIndex[3], &normalIndex[3]
+            );
+
+            for (int i = 0; i < 4; i++) {
+                vertexIndex[i] -= 1;     // obj file indices start from 1
+                uvIndex[i] -= 1;
+                normalIndex[i] -= 1;
+            }
+
+            //====== change from quads to triangle
+            indices.push_back(vertexIndex[0]);
+            indices.push_back(vertexIndex[1]);
+            indices.push_back(vertexIndex[2]);
+            indices.push_back(vertexIndex[2]);
+            indices.push_back(vertexIndex[3]);
+            indices.push_back(vertexIndex[0]);
+
+
+            if (matches != 12) {
+                cout << "ERROR: couldn't read the faces! number of quads didn't match" << endl;
+                exit(-1);
+            }
+
+        }
+
+    }
+
+    return indices;
+}
+
+vector<easy3d::vec3> readFace3DFromObj(std::string path) {
+
+    std::ifstream infile(path);
+    if (infile.fail()) {
+        std::cerr << "ERROR: couldn't open the Obj file to read the face from" << endl;
+        exit(-1);
+    }
+
+    vector<easy3d::vec3> faceVerts;
+    faceVerts.reserve(NUM_OF_VERTICES);
+
+    for (int i = 0; i < NUM_OF_VERTICES; i++) {
+        std::string hay;
+        std::getline(infile, hay, ' ');
+        std::getline(infile, hay, ' ');
+        float x = std::stof(hay);
+        std::getline(infile, hay, ' ');
+        float y = std::stof(hay);
+        std::getline(infile, hay);
+        float z = std::stof(hay);
+
+        faceVerts.push_back(easy3d::vec3(x, y, z));
+    }
+
+    infile.close();
+
+    return faceVerts;
+}
+
+vector<int> readVertexIdFromFile(std::string path) {
+
+    std::ifstream infile(path);
+    if (infile.fail()) {
+        std::cerr << "ERROR: couldn't open the landmark vertex file " << endl;
+        exit(-1);
+    }
+    std::string temp;
+    std::getline(infile, temp);
+    int numLms = std::stoi(temp);
+    vector<int> vk(numLms);
+    for (int i = 0; i < numLms; i++) {
+        std::getline(infile, temp, ',');
+        vk[i] = std::stoi(temp);
+        std::getline(infile, temp);
+    }
+    infile.close();
+
+    return vk;
 }
