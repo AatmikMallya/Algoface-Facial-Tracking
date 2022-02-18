@@ -11,6 +11,8 @@ add_definitions(-D_HAS_STD_BYTE=0)             # for C++17
 #******************* external packages
 FIND_PACKAGE(Easy3D REQUIRED)
 FIND_PACKAGE(OpenCV REQUIRED)
+#FIND_PACKAGE(glog REQUIRED)#
+#FIND_PACKAGE(
 FIND_PACKAGE(Threads REQUIRED)
 FIND_PACKAGE(X11)
 
@@ -24,6 +26,8 @@ include_directories(
 	${ASU_INCLUDE_DIRS}
 	${CMAKE_SOURCE_DIR}/3rdparty/ceres/include
 	${CMAKE_SOURCE_DIR}/3rdparty/glog/include
+	#${CMAKE_SOURCE_DIR}/3rdparty/ceres#
+	#${CMAKE_SOURCE_DIR}/3rdparty/glog#
 )
 
 #******************* executables

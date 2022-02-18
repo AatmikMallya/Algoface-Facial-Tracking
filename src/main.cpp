@@ -2,16 +2,17 @@
 #include <filesystem>
 #include <vector>
 
-#include <random>
-#include "ceres/ceres.h"
-//#include <glog/logging.h>
-#include <functional>
+#include "glog/logging.h"
 
+#include <functional>
+#include "../include/optimization.h"
 #include "../include/tensor.h"
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <fstream>
+
+#include "ceres/ceres.h"
 
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -33,41 +34,15 @@ string WAREHOUSE_PATH = "D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking
 string RAW_TENSOR_PATH = "D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/raw_tensor.bin";
 string SHAPE_TENSOR_PATH = "D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/shape_tensor.bin";
 
-//ceres library testing
-// I tried changing x and y to vectors of vectors to store the raw tensor values
-// I can't tell if I need x and y or what exactly this function does
-// I want it to do this: stored face - (storedface * weight) = weighted face
-struct Linear {
-
-    Linear(int numObservations, const vector<vector<Eigen::Vector3f>>& x) {//, const vector<vector<Eigen::Vector3f>>& y) {
-        _numObservations = numObservations;
-        _x.resize(numObservations);
-        //_y.resize(numObservations);
-        std::copy(x.begin(), x.end(), _x.begin());
-        //std::copy(y.begin(), y.end(), _y.begin());
-    }
-
-    template <typename T>
-    bool operator()(const T* w, T* residual) const {
-
-        for (int i = 0; i < _numObservations; i++)
-            residual[i] = ((w[0] * T(_x[i]));
-
-        return true;
-    }
-
-private:
-    int                 _numObservations = 0;
-    vector<vector<Eigen::Vector3f>>      _x;
-    //vector<vector<Eigen::Vector3f>>      _y;
-};
-//
+//ctl + k + u/c
 
 int main() {
+    
+    //********************************** create or load tensors
+
     // Raw tensor: 150 users X 47 expressions X 11510 vertices
     tensor3 rawTensor(150, 47, 11510);
     tensor3 shapeTensor(150, 47, 73);
-
 
     if (std::filesystem::exists(RAW_TENSOR_PATH)) {
         loadRawTensor(RAW_TENSOR_PATH, rawTensor);
@@ -78,45 +53,179 @@ int main() {
 
     if (std::filesystem::exists(SHAPE_TENSOR_PATH)) {
         loadShapeTensor(SHAPE_TENSOR_PATH, shapeTensor);
-    } else {
+    }
+    else {
         buildShapeTensor(rawTensor, SHAPE_TENSOR_PATH, shapeTensor);
     }
+
+    //**********************************
+    //********************************** ceres optimization variable initilization
+    //lms = 2D landmarks used to construct x - cx / f
+    //pose = 1x6 vector with rotation and translation
+    //image = needed to get cx and cy
+    //f = focal length
+    //w_exp = output
+    int numExpressions = 47;
+    Eigen::VectorXf w(numExpressions); // weights in optimization
+
+    for (int i = 0; i < numExpressions; i++)
+    {
+        w[i] = 0;
+    }
+    w[0] = 1;
+
+    //Eigen::MatrixXf w_exp = w; // output
+    //Eigen::VectorXf w; // weight vector
+    //Eigen::MatrixXf prePose; //slice * weight
+    //vector<cv::Point2f> lms; // 
+    //std::vector<float> pose; //
+    //cv::Mat image; //
+    //float f; //
+
+    //**********************************
+    //********************************** pose estimation
 
     /** Transform from object coordinates to camera coordinates **/
     // Copy Eigen vector to OpenCV vector
     int n_vectors = 73;
-    std::vector<cv::Point3f> objectVec(n_vectors);
-    for (int i = 0; i < n_vectors; ++i) {
-        Eigen::Vector3f eigen_vec = shapeTensor(102, 22, i); //tester103, pose1/expression22, vertices
-        //cout << "shapeTensor: " << shapeTensor(0, 0, i) << endl;
-        cv::Point3f cv_vec;
-        cv_vec.x = eigen_vec.x();
-        cv_vec.y = eigen_vec.y();
-        cv_vec.z = eigen_vec.z();
-        objectVec[i] = cv_vec;
+    vector<cv::Point3f> singleExp(n_vectors); // holds 1 expression with 73 vertices used to create multExp
+    vector<vector<cv::Point3f>> multExp(numExpressions); //holds 47 expressions with 73 vertices used to create combined exp
+    
+    //47 expressions
+    for (int i = 0; i < numExpressions; i++)
+    {
+        //73 vertices
+        for (int j = 0; j < n_vectors; j++) {
+            Eigen::Vector3f tens_vec = shapeTensor(137, i, j);
+            cv::Point3f cv_vec;
+            cv_vec.x = tens_vec.x();
+            cv_vec.y = tens_vec.y();
+            cv_vec.z = tens_vec.z();
+            singleExp[j] = cv_vec;
+        }
+        multExp[i] = singleExp;
+        /*
+        //73 vertices
+        for (int j = 0; j < n_vectors; j++)
+        {
+            combinedExp[j].x = multExp[i][j].x * w[i];
+            combinedExp[j].y = multExp[i][j].y * w[i];
+            combinedExp[j].z = multExp[i][j].z * w[i];
+        }
+        */
     }
 
-
+    
+    vector<cv::Point3f> combinedExp(n_vectors); //holds 1 expression made from 47 expressions 
+    //73 vertices
+    for (int i = 0; i < n_vectors; i++)
+    {
+        //47 expressions
+        for (int j = 0; j < numExpressions; j++)
+        {
+            combinedExp[i].x = (combinedExp[i].x + multExp[j][i].x * w[j]);
+            combinedExp[i].y = (combinedExp[i].y + multExp[j][i].y * w[j]);
+            combinedExp[i].z = (combinedExp[i].z + multExp[j][i].z * w[j]);
+        }
+    }
+    
     // Image vector contains 2d landmark positions
-    string img_path = WAREHOUSE_PATH + "Tester_103/TrainingPose/pose_1.png";
-    string land_path = WAREHOUSE_PATH + "Tester_103/TrainingPose/pose_1.land";
+    string img_path = WAREHOUSE_PATH + "Tester_138/TrainingPose/pose_1.png"; //pose estimation
+    string land_path = WAREHOUSE_PATH + "Tester_138/TrainingPose/pose_1.land"; //pose estimation
     cv::Mat image = cv::imread(img_path, 1);
     std::vector<cv::Point2f> lmsVec = readLandmarksFromFile_2(land_path, image);
 
-    double fx = 640, fy = 640, cx = 320, cy = 240;
-    cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1);
-    // Assuming no distortion
-    cv::Mat distCoeffs(4, 1, CV_64F);
-    distCoeffs.at<double>(0) = 0;
-    distCoeffs.at<double>(1) = 0;
-    distCoeffs.at<double>(2) = 0;
-    distCoeffs.at<double>(3) = 0;
+
+    //double fx = 640, fy = 640, cx = 320, cy = 240;
+
+    double f = image.cols;               // ideal camera where fx ~ fy
+    double cx = image.cols / 2.0;
+    double cy = image.rows / 2.0;
+
+    cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) << f, 0, cx, 0, f, cy, 0, 0, 1);
+    //cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) << f, 0, cx, 0, f, cy, 0, 0, 1);
+
+    //// Assuming no distortion
+    //cv::Mat distCoeffs(4, 1, CV_64F);
+    //distCoeffs.at<double>(0) = 0;
+    //distCoeffs.at<double>(1) = 0;
+    //distCoeffs.at<double>(2) = 0;
+    //distCoeffs.at<double>(3) = 0;
 
     // Get rotation and translation parameters
     cv::Mat rvec(3, 1, CV_64F);
     cv::Mat tvec(3, 1, CV_64F);
-    cv::solvePnP(objectVec, lmsVec, cameraMatrix, distCoeffs, rvec, tvec);
 
+
+    cv::solvePnP(combinedExp, lmsVec, cameraMatrix, cv::Mat(), rvec, tvec); //distCoeffs -> cv::Mat
+    //
+    //********************************** ceres optimization
+
+    cv::Mat poseMat;
+    cv::hconcat(rvec, tvec, poseMat);
+    /*
+    std::vector<float> poseVec(6);
+    
+
+    poseVec[0] = poseMat.at<float>(1, 1);
+    poseVec[1] = poseMat.at<float>(2, 1);
+    poseVec[2] = poseMat.at<float>(3, 1);
+    poseVec[3] = poseMat.at<float>(4, 1);
+    poseVec[4] = poseMat.at<float>(5, 1);
+    poseVec[5] = poseMat.at<float>(6, 1);
+    */
+    cv::Mat flat = poseMat.reshape(1, poseMat.total() * poseMat.channels());
+    std::vector<float>poseVec = poseMat.isContinuous() ? flat : flat.clone();
+    
+    for (int i = 0; i < 6; i++)
+    {
+        cout << poseVec[i] << endl;
+    }
+
+
+    bool boolOpt = optimize(multExp, lmsVec, poseVec, image, f, w); //first optimization
+
+    for (int opt = 0; opt < 3; opt++) // multiple optimizations
+    {
+
+
+        // create new face based on weights
+        for (int i = 0; i < 73; i++)
+        {
+            for (int j = 0; j < numExpressions; j++)
+            {
+
+                combinedExp[i].x = combinedExp[i].x + multExp[j][i].x * w[j];
+                combinedExp[i].y = combinedExp[i].y + multExp[j][i].y * w[j];
+                combinedExp[i].z = combinedExp[i].z + multExp[j][i].z * w[j];
+            }
+        }
+
+
+        //pose estimation
+        cv::solvePnP(combinedExp, lmsVec, cameraMatrix, cv::Mat(), rvec, tvec);
+        cv::Mat poseMat;
+
+        cv::hconcat(tvec, rvec, poseMat);
+
+        cv::Mat flat = poseMat.reshape(1, poseMat.total() * poseMat.channels());
+        std::vector<float> poseVec = poseMat.isContinuous() ? flat : flat.clone();
+
+        // optimization
+        optimize(multExp, lmsVec, poseVec, image, f, w);
+
+
+    }
+
+
+    //if (boolOpt == true) {
+    //    cout << "optimization worked" << endl;
+    //}
+    //else {
+    //    cout << "optimization broke" << endl;
+    //}
+
+    //**********************************
     // Convert Euler angles to rotation matrix
     cv::Mat R;
     cv::Rodrigues(rvec, R);
@@ -127,7 +236,7 @@ int main() {
     T(cv::Range(0, 3), cv::Range(3, 4)) = tvec * 1;
     // Transform object
     std::vector<cv::Mat> cameraVec;
-    for (auto& vec : objectVec) {
+    for (auto& vec : combinedExp) {
         double data[4] = { vec.x, vec.y, vec.z, 1 };
         cv::Mat vector4d = cv::Mat(4, 1, CV_64F, data);
         cv::Mat result = T * vector4d;
@@ -138,15 +247,16 @@ int main() {
     std::vector<cv::Point2f> imageVec;
     for (auto& vec : cameraVec) {
         cv::Point2f result;
-        result.x = fx * vec.at<double>(0, 0) / vec.at<double>(2, 0) + cx;
-        result.y = fx * vec.at<double>(1, 0) / vec.at<double>(2, 0) + cy;
+        //result.x = fx * vec.at<double>(0, 0) / vec.at<double>(2, 0) + cx;
+        //result.y = fx * vec.at<double>(1, 0) / vec.at<double>(2, 0) + cy;
+        result.x = f * vec.at<double>(0, 0) / vec.at<double>(2, 0) + cx;
+        result.y = f * vec.at<double>(1, 0) / vec.at<double>(2, 0) + cy;
         imageVec.push_back(result);
     }
-    cv::projectPoints(objectVec, rvec, tvec, cameraMatrix, distCoeffs, imageVec);
-
+    cv::projectPoints(combinedExp, rvec, tvec, cameraMatrix, cv::Mat(), imageVec);//distCoeffs ->cv::Mat()
 
     cv::Mat visualImage = image.clone();
-    double sc = 2;
+    double sc = 2; //size of displayed picture
     cv::resize(visualImage, visualImage, cv::Size(visualImage.cols * sc, visualImage.rows * sc));
     for (int i = 0; i < imageVec.size(); i++) {
         //cv::circle(visualImage, imageVec[i] * sc, 1, cv::Scalar(0, 255, 0), 1);
@@ -159,15 +269,24 @@ int main() {
 
     }
     cv::imshow("visualImage", visualImage);
+
+    //**********************************
+    //**********************************
+
     int key = cv::waitKey(0) % 256;
     if (key == 27)                        // Esc button is pressed
         Sleep(1000);
 
-    //****
+    //**********************************
+    
 
-    vector<uint32_t> meshIndices = readMeshTriangleIndicesFromFile("D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/faces.obj");
-    vector<easy3d::vec3> faceVerts = readFace3DFromObj(WAREHOUSE_PATH + "Tester_103/Blendshape/shape_22.obj");
-    vector<int> all3dVertices = readVertexIdFromFile("D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/lm_vert_internal_73.txt");   // same order as landmarks
+
+
+    //********************************** creating 3D face
+
+    vector<uint32_t> meshIndices = readMeshTriangleIndicesFromFile("D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/faces.obj"); //easy3D
+    vector<easy3d::vec3> faceVerts = readFace3DFromObj(WAREHOUSE_PATH + "Tester_103/Blendshape/shape_22.obj"); //easy3D
+    vector<int> all3dVertices = readVertexIdFromFile("D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/lm_vert_internal_73.txt");   // same order as landmarks (Easy3D)
     
     vector<int> poseIndices = {
             0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,  //face contour
@@ -221,99 +340,24 @@ int main() {
     // Run the viewer
     viewer.run();
 
-    //****
-
+    //**********************************
+    //**********************************
+    /*
     key = cv::waitKey(0) % 256;
     if (key == 27)                        // Esc button is pressed
         exit(1);
-
-    //-************************************************
-    //implement ceres library functions to be later moved to seperate files
-    //ctl + k + u = uncomment
-    //ctl + k + c = comment
-
-    int numObservations = 47;
-    vector<vector<Eigen::Vector3f>> x(numObservations);
-    vector<vector<Eigen::Vector3f>> y(numObservations);
-
-    vector<float> w(47); // vector of 3f vector containing 47 expressions from shapetensor
-    for (int i = 0; i < 47; i++) {
-        w[i] = 0; // = shapeTensor(137, 22, i); //tester138, pose1/expression22, all vertices
-    }
-    w[0] = 1;
-
-    vector<vector<Eigen::Vector3f>> identity(47); // vector of 3f vector containing 34020 identities from rawtensor
-    for (int i = 0; i < 47; i++) {
-        for (int j = 0; j < 11510; j++) { // 3836 * 3 = 11510
-            Eigen::Vector3f temp = rawTensor(137, i, j); //tester138, all expressions, all vertices
-            identity[i][j] = temp;
-        }
-    }
-
-    /*for (int i = 0; i < 47; i++) {
-        //cout << i << " expressions: " << expressions[i] << endl;
-        cout << i << " identity: " << identity[i] << endl;
-    }*/
-
-    //cout  << "size: " << expressions.size() << endl;
-    //cout << "size: " << identity.size() << endl;
-    
-    for (int i = 0; i < numObservations; i++) {
-        for (int j = 0; j < numObservations; j++) {
-            x[i][j] = identity[i][j] * w[i];
-        }
-
-        //y[i] = 2 * x[i] - 3 + rand() * 1.0 / RAND_MAX;
-        //y[i] = identity[i];
-    }
-
-    //vector<double> w(47);
-    //fill(w.begin(), w.end(), 0);
-    //w[0] = 1;
-
-    ceres::Problem problem;
-    //Linear* lin = new Linear(numObservations, x, y);
-    Linear* lin = new Linear(numObservations, x);
-
-    ceres::CostFunction* costFunction = new ceres::AutoDiffCostFunction<Linear, ceres::DYNAMIC, 1>(lin, numObservations);
-    //ceres::CostFunction* costFunction = new ceres::AutoDiffCostFunction<Exponential, ceres::DYNAMIC, 3>(exp, numObservations);
-    //ceres::CostFunction* costFunction = new ceres::AutoDiffCostFunction<Linear, 47, 1>(lin);
-
-    problem.AddResidualBlock(costFunction, NULL, &w[0]);
-
-    //problem.SetParameterLowerBound(&w[0], 0, 0);  
-    //problem.SetParameterUpperBound(&w[0], 0, 4);
-
-    //problem.SetParameterLowerBound(&w[0], 1, -5); 
-    //problem.SetParameterUpperBound(&w[0], 1, -1);
-
-    ceres::Solver::Options options;
-    options.max_num_iterations = 25;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-    cout << summary.BriefReport() << endl << endl;
-    for (int i = 0; i < w.size(); i++)
-        cout << "i = " << i << ", w = " << w[i] << endl;
-
-    //-************************************************
+    */
+    //**********************************
 
 
-    //
+    ////**********************************
 
-    key = cv::waitKey(0) % 256;
-    if (key == 27)                        // Esc button is pressed
-        exit(1);
+    //key = cv::waitKey(0) % 256;
+    //if (key == 27)                        // Esc button is pressed
+    //    exit(1);
+
+    ////**********************************
 
     return 0;
 
 }
-
-
-
-
-//    std::ofstream file ("test.obj");
-//    for (int k = 0; k < 73; k++) {
-//        Eigen::Vector3f v = shapeTensor(0, 0, k);
-//        file << "v " << v.x() << " " << v.y() << " " << v.z() << "\n";
-//    }
-//    file.close();
