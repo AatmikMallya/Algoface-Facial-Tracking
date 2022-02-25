@@ -27,7 +27,7 @@ using std::vector;
 
 struct ReprojectErrorExp {
 
-	ReprojectErrorExp(const std::vector<float>& pose, int numLms, const std::vector<std::vector<cv::Point3f>>& blendshapes, std::vector<cv::Point2f>& gtLms) {
+	ReprojectErrorExp(const std::vector<double>& pose, int numLms, const std::vector<std::vector<cv::Point3f>>& blendshapes, std::vector<cv::Point2f>& gtLms) {
 		_pose = pose;
 		_numLms = numLms;
 		_blendshapes = blendshapes;
@@ -95,18 +95,42 @@ struct ReprojectErrorExp {
 
 			//cout << residual[2 * i] << endl << residual[2 * i + 1] << endl << endl;
 			//cout << endl << i << endl;
-			//if (i == 47) //used to exit as below return is never touched for unknown reasons
-				//return true;
 		}
-		//cout << "program gets to untouched return" << endl;
+		//cout << "program got here" << endl;
 		return true;
 	}
 
 private:
 	std::vector<std::vector<cv::Point3f>>			_blendshapes;
-	std::vector<float>			_pose;
+	std::vector<double>			_pose;
 	int						_numLms;
 	vector<cv::Point2f>     _gtLms;
+};
+
+struct Regularization {
+
+	Regularization(int numWeights, const vector<double>& wr, double penalty) {
+		_numWeights = numWeights;
+		_wr = wr;
+		_penalty = penalty;
+	}
+
+	template <typename T>
+	bool operator()(const T* w, T* residual) const {
+
+		for (int i = 0; i < _numWeights; i++) {
+			
+			residual[i] = T(_wr[i]) - w[i];
+			residual[i] *= T(_penalty);
+		}
+		//cout << "program got here2" << endl;
+		return true;
+	}
+
+private:
+	int							_numWeights;
+	std::vector<double>	_wr;
+	double						_penalty;
 };
 
 //lms = 2D landmarks used to construct x - cx / f
@@ -117,7 +141,7 @@ private:
 
 //function to call after pose estimation to optimize the data
 bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Point2f>& lms,
-	const std::vector<float>& pose, const cv::Mat& image, float f, Eigen::VectorXf& w_exp)
+	const std::vector<double>& pose, const cv::Mat& image, double f, Eigen::VectorXf& w_exp)
 {
 	/*
 	//3D slice of matrix
@@ -132,38 +156,56 @@ bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Po
 	*/
 
 	int numExpressions = 47;
-	int numLms = lms.size();
-	float cx = image.cols / 2.0;
-	float cy = image.rows / 2.0;
+	int numLms = lms.size(); //73
+	double cx = image.cols / 2.0;
+	double cy = image.rows / 2.0;
 
 	vector<double> w(numExpressions, 0);        // numExpressions = 47
-	//w = w_exp;
-	w[1] = 1;
+	for (int i = 0; i < numExpressions; i++)
+	{
+		w[i] = w_exp(i);
+	}
+
+	vector<double> wr(numExpressions, 0);
+	wr[22] = 1;
+
+
 	ceres::Problem problem;
 
 	//3D to 2D equations ((x/y) = (x/y)/z + f + c(x/y)) --> ((x/y) - c(x/y)) / f = (x/y)/z
 	vector<cv::Point2f> gtLms;
 	gtLms.reserve(numLms);
 	for (int i = 0; i < numLms; i++) {
-		float gtX = (lms[i].x - cx) / f;
-		float gtY = (lms[i].y - cy) / f;
+		double gtX = (lms[i].x - cx) / f;
+		double gtY = (lms[i].y - cy) / f;
 		gtLms.emplace_back(gtX, gtY);
 	}
 
 	ReprojectErrorExp* repErrFunc = new ReprojectErrorExp(pose, numLms, multExp, gtLms);   // upload the required parameters
-	ceres::CostFunction* optimTerm = new ceres::AutoDiffCostFunction<ReprojectErrorExp, ceres::DYNAMIC, 46>(repErrFunc, numLms * 2);  // times 2 becase we have gtx and gty
+	ceres::CostFunction* optimTerm = new ceres::AutoDiffCostFunction<ReprojectErrorExp, ceres::DYNAMIC, 47>(repErrFunc, numLms * 2);  // times 2 becase we have gtx and gty
 	problem.AddResidualBlock(optimTerm, NULL, &w[0]);
 
-	// for (int i = 0; i < _numExpressions - 1; i++) {
-		// problem.SetParameterLowerBound(&w[0], i, 0.0);   // first argument must be w of ZERO and the second is the index of interest
-		// problem.SetParameterUpperBound(&w[0], i, 1.0);    // also the boundaries should be set after adding the residual block
-	// }
 
-	//cout << "print optimization" << endl;
+	 for (int i = 0; i < numExpressions - 1; i++) {
+		 problem.SetParameterLowerBound(&w[0], i, 0.0);   // first argument must be w of ZERO and the second is the index of interest
+		 problem.SetParameterUpperBound(&w[0], i, 1.0);    // also the boundaries should be set after adding the residual block
+	 }
+
+
+	 double penalty = 1.0;
+	 Regularization* regular = new Regularization(numExpressions, wr, penalty);
+	 optimTerm = new ceres::AutoDiffCostFunction<Regularization, 47, 47>(regular);
+	 problem.AddResidualBlock(optimTerm, NULL, &w[0]);
+
+	 
+
+	//Error = proj + regularizatiopn(penalty)
+
+	//cout << "program got here" << endl;
 
 	ceres::Solver::Options options;
 	//options.logging_type = ceres::SILENT;
-	options.max_num_iterations = 100;
+	options.max_num_iterations = 50;
 	//cout << "before summary" << endl;
 	ceres::Solver::Summary summary;
 	//cout << "before solve" << endl;
@@ -174,6 +216,10 @@ bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Po
 	for (int i = 0; i < numExpressions; i++)
 	{
 		w_exp(i) = w[i];
+	}
+	for (int i = 0; i < w.size(); i++)
+	{
+		cout << "i = " << i << " w = " << w[i] << endl;
 	}
 	//w_exp.all() = w.data;
 	//cout << "before return" << endl;
