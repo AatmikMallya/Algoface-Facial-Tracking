@@ -199,7 +199,7 @@ int main() {
 
 	/*8. Repeat this process by constantly updating your initial pose and expression parameter, for 3 iterations.
 	So for 3 times, you alternately optimize pose and expression and at each iteration you use your estimated outputs of the previous step*/
-	for (int opt = 0; opt < 3; opt++) // multiple optimizations
+	for (int opt = 0; opt < 1; opt++) // multiple optimizations
 	//while(!(optimize(multExp, lmsVec, poseVec, image, f, w)))
 	{
 		// create new face based on weights
@@ -229,18 +229,18 @@ int main() {
 	}
 
 
-	cv::projectPoints(combinedExp, rvec, tvec, cameraMatrix, cv::Mat(), imageVec);//distCoeffs ->cv::Mat()
+	//cv::projectPoints(combinedExp, rvec, tvec, cameraMatrix, cv::Mat(), imageVec);//distCoeffs ->cv::Mat()
 
-	cv::Mat visualImage = image.clone();
-	double sc = 2; //size of displayed picture
-	cv::resize(visualImage, visualImage, cv::Size(visualImage.cols * sc, visualImage.rows * sc));
-	for (int i = 0; i < imageVec.size(); i++) {
-		//cv::circle(visualImage, imageVec[i] * sc, 1, cv::Scalar(0, 255, 0), 1);
-		//cv::putText(visualImage, std::to_string(i), lmsVec[i] * sc, 3, 0.4, cv::Scalar::all(255), 1);
-		cv::circle(visualImage, imageVec[i] * sc, 1, cv::Scalar(0, 0, 255), sc);             // 3d projections (red)
-		cv::circle(visualImage, lmsVec[i] * sc, 1, cv::Scalar(0, 255, 0), sc);               // 2d landmarks   (green)
-	}
-	cv::imshow("visualImage", visualImage);
+	//cv::Mat visualImage = image.clone();
+	//double sc = 2; //size of displayed picture
+	//cv::resize(visualImage, visualImage, cv::Size(visualImage.cols * sc, visualImage.rows * sc));
+	//for (int i = 0; i < imageVec.size(); i++) {
+	//	//cv::circle(visualImage, imageVec[i] * sc, 1, cv::Scalar(0, 255, 0), 1);
+	//	//cv::putText(visualImage, std::to_string(i), lmsVec[i] * sc, 3, 0.4, cv::Scalar::all(255), 1);
+	//	cv::circle(visualImage, imageVec[i] * sc, 1, cv::Scalar(0, 0, 255), sc);             // 3d projections (red)
+	//	cv::circle(visualImage, lmsVec[i] * sc, 1, cv::Scalar(0, 255, 0), sc);               // 2d landmarks   (green)
+	//}
+	//cv::imshow("visualImage", visualImage);
 
 	//**********************************
 	//**********************************
@@ -264,7 +264,7 @@ int main() {
 	{
 		//11510 vertices
 		for (int j = 0; j < n_raw_vectors; j++) {
-			Eigen::Vector3f raw_tens_vec = rawTensor(138, i, j);
+			Eigen::Vector3f raw_tens_vec = rawTensor(137, i, j);
 			cv::Point3f raw_cv_vec;
 			raw_cv_vec.x = raw_tens_vec.x();
 			raw_cv_vec.y = raw_tens_vec.y();

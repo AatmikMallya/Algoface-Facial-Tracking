@@ -45,21 +45,6 @@ struct ReprojectErrorExp {
 			T Y = T(0);
 			T Z = T(0);
 
-			// take 47x200 and combine with 47x1, blendshapes = 47x200, we take vertMat as 47x3
-			//const arma::fmat& vertMat = _blendshapes.rows(3 * i, 3 * i + 2);
-			/*
-			const Eigen::MatrixXf& vertMat;
-			for (int j = 0; j < 47; j++)
-			{
-				vertMat = _blendshapes.row(i), _blendshapes.row(i+1), _blendshapes.row(i+2);
-			}
-
-			for (int j = 0; j < 47; j++) {
-				X += T(vertMat(0, j)) * w[j];
-				Y += T(vertMat(1, j)) * w[j];
-				Z += T(vertMat(2, j)) * w[j];
-			}
-			*/
 			for (int j = 0; j < 47; j++) {
 				X += T(_blendshapes[j][i].x) * w[j];
 				Y += T(_blendshapes[j][i].y) * w[j];
@@ -93,10 +78,6 @@ struct ReprojectErrorExp {
 			residual[2 * i] = T(_gtLms[i].x) - xp;    // if you follows the steps above, you can see xp and yp are directly influenced by w, as if   
 			residual[2 * i + 1] = T(_gtLms[i].y) - yp;    // you are optimizing the effect w_exp on xp and yp, and their yielded error.
 
-			//cout << residual[2 * i] << endl << residual[2 * i + 1] << endl << endl;
-			//cout << endl << i << endl;
-			//if (i == 47) //used to exit as below return is never touched for unknown reasons
-				//return true;
 		}
 		//cout << "program gets to untouched return" << endl;
 		return true;
@@ -127,7 +108,7 @@ struct Regularization {
 	}
 
 private:
-	int             _numWeights = 0;
+	int             _numWeights ;
 	vector<double>  _wr;
 	double          _penalty;
 };
@@ -168,21 +149,21 @@ bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Po
 	ceres::CostFunction* optimTerm = new ceres::AutoDiffCostFunction<ReprojectErrorExp, ceres::DYNAMIC, 47>(repErrFunc, numLms * 2);  // times 2 becase we have gtx and gty
 	problem.AddResidualBlock(optimTerm, NULL, &w[0]);
 
-	// for (int i = 0; i < _numExpressions - 1; i++) {
-		// problem.SetParameterLowerBound(&w[0], i, 0.0);   // first argument must be w of ZERO and the second is the index of interest
-		// problem.SetParameterUpperBound(&w[0], i, 1.0);    // also the boundaries should be set after adding the residual block
-	// }
+	 for (int i = 0; i < numExpressions - 1; i++) {
+		 problem.SetParameterLowerBound(&w[0], i, 0.0);   // first argument must be w of ZERO and the second is the index of interest
+		 problem.SetParameterUpperBound(&w[0], i, 1.0);    // also the boundaries should be set after adding the residual block
+	 }
 
 	ceres::Solver::Options options;
 	//options.logging_type = ceres::SILENT;
-	options.max_num_iterations = 100;
+	options.max_num_iterations = 35;
 	//cout << "before summary" << endl;
 	ceres::Solver::Summary summary;
 	//cout << "before solve" << endl;
-	ceres::Solve(options, &problem, &summary);
+	
 
 
-	float penalty = 2.0;
+	float penalty = 0.3;
 	Regularization* regular = new Regularization(47, wr, penalty);
 	optimTerm = new ceres::AutoDiffCostFunction<Regularization, 47, 47>(regular);
 	problem.AddResidualBlock(optimTerm, NULL, &w[0]);
@@ -192,10 +173,12 @@ bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Po
 	//ceres::Solver::Summary summary;
 	//ceres::Solve(options, &problem, &summary);
 
+	ceres::Solve(options, &problem, &summary);
 	cout << summary.BriefReport() << endl << endl;
 	for (int i = 0; i < numExpressions; i++)
 	{
 		w_exp(i) = w[i];
+		cout << "i=" << i << ", w[i]= " << w[i] << ", wr[i]= " << wr[i] << endl;
 	}
 
 	return summary.termination_type == ceres::TerminationType::CONVERGENCE;
