@@ -34,7 +34,9 @@ namespace asu {
         ~Utility() {}
 
         vector<cv::Point2f> readLandmarksFromFile(const std::string& path, const cv::Mat& image);
-        vector<vector<uint32_t>>    readQuadIndicesFromFile(const std::string& path);
+        vector<vector<uint32_t>> readQuadIndicesFromFile(const std::string& path);
+        
+
     private:
 
     };

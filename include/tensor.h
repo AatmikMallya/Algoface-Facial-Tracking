@@ -50,5 +50,5 @@ vector<cv::Point2f> readLandmarksFromFile_2(const std::string& path, const cv::M
 vector<uint32_t> readMeshTriangleIndicesFromFile(const std::string& path);
 vector<easy3d::vec3> readFace3DFromObj(std::string path);
 vector<int> readVertexIdFromFile(std::string path);
-
+void createFaceObj(const vector<cv::Point3f> faceVec, std::string pathToOutputObjFile);
 #endif //DEMO_CORE_TENSOR_H
