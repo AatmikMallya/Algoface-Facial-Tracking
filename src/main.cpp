@@ -111,9 +111,9 @@ int main() {
 		//47 expressions
 		for (int j = 0; j < numExpressions; j++)
 		{
-			combinedExp[i].x = (combinedExp[i].x + multExp[j][i].x * w[j]);
-			combinedExp[i].y = (combinedExp[i].y + multExp[j][i].y * w[j]);
-			combinedExp[i].z = (combinedExp[i].z + multExp[j][i].z * w[j]);
+			combinedExp[i].x += multExp[j][i].x * w[j];
+			combinedExp[i].y += multExp[j][i].y * w[j];
+			combinedExp[i].z += multExp[j][i].z * w[j];
 		}
 	}
 
@@ -208,13 +208,13 @@ int main() {
 			for (int j = 0; j < numExpressions; j++)
 			{
 
-				combinedExp[i].x = combinedExp[i].x + multExp[j][i].x * w[j];
-				combinedExp[i].y = combinedExp[i].y + multExp[j][i].y * w[j];
-				combinedExp[i].z = combinedExp[i].z + multExp[j][i].z * w[j];
+				combinedExp[i].x += multExp[j][i].x * w[j];
+				combinedExp[i].y += multExp[j][i].y * w[j];
+				combinedExp[i].z += multExp[j][i].z * w[j];
 			}
 		}
 		//pose estimation
-		cv::solvePnP(combinedExp, lmsVec, cameraMatrix, cv::Mat(), rvec, tvec,true);
+		cv::solvePnP(combinedExp, lmsVec, cameraMatrix, cv::Mat(), rvec, tvec, true);
 
 		for (int i = 0; i < 3; i++)
 		{
@@ -236,13 +236,9 @@ int main() {
 	cv::resize(visualImage, visualImage, cv::Size(visualImage.cols * sc, visualImage.rows * sc));
 	for (int i = 0; i < imageVec.size(); i++) {
 		//cv::circle(visualImage, imageVec[i] * sc, 1, cv::Scalar(0, 255, 0), 1);
-//        cv::putText(visualImage, std::to_string(i), lmsVec[i] * sc, 3, 0.4, cv::Scalar::all(255), 1);
-
+		//cv::putText(visualImage, std::to_string(i), lmsVec[i] * sc, 3, 0.4, cv::Scalar::all(255), 1);
 		cv::circle(visualImage, imageVec[i] * sc, 1, cv::Scalar(0, 0, 255), sc);             // 3d projections (red)
 		cv::circle(visualImage, lmsVec[i] * sc, 1, cv::Scalar(0, 255, 0), sc);               // 2d landmarks   (green)
-
-		//cv::putText(visualImage, std::to_string(i), lmsVec[i] * sc, 3, 0.4, cv::Scalar::all(255), 1);
-
 	}
 	cv::imshow("visualImage", visualImage);
 
@@ -278,17 +274,20 @@ int main() {
 		raw_multExp[i] = raw_singleExp;
 	}
 	vector<cv::Point3f> raw_combinedExp(n_raw_vectors); //holds 1 expression made from 47 expressions (neutral expression)
-//73 vertices
 	for (int i = 0; i < n_raw_vectors; i++)
 	{
 		//47 expressions
 		for (int j = 0; j < numExpressions; j++)
 		{
-			raw_combinedExp[i].x = (raw_combinedExp[i].x + raw_multExp[j][i].x * w[j]);
-			raw_combinedExp[i].y = (raw_combinedExp[i].y + raw_multExp[j][i].y * w[j]);
-			raw_combinedExp[i].z = (raw_combinedExp[i].z + raw_multExp[j][i].z * w[j]);
+			raw_combinedExp[i].x += raw_multExp[j][i].x * w[j];
+			raw_combinedExp[i].y += raw_multExp[j][i].y * w[j];
+			raw_combinedExp[i].z += raw_multExp[j][i].z * w[j];
 		}
 	}
+	
+	createFaceObj(raw_combinedExp, "F:/Capstone/LocalREp/Facial-Tracking2/data/newfaces.obj");
+
+
 	//asu::Utility util;
 	//vector<vector<uint32_t>> quads = util.readQuadIndicesFromFile("F:/Capstone/LocalREp/Facial-Tracking2/data/faces.obj");
 	//easy3d::SurfaceMesh* mesh = new easy3d::SurfaceMesh();
@@ -302,8 +301,10 @@ int main() {
 	//auto sDrawable = mesh->renderer()->get_triangles_drawable("faces");    // the string must be "faces"
 
 	//********************************** creating 3D face
-	vector<uint32_t> meshIndices = readMeshTriangleIndicesFromFile("F:/Capstone/LocalREp/Facial-Tracking2/data/faces.obj"); //easy3D
-	vector<easy3d::vec3> faceVerts = readFace3DFromObj(WAREHOUSE_PATH + "Tester_138/Blendshape/shape_22.obj"); //easy3D
+	//vector<uint32_t> meshIndices = readMeshTriangleIndicesFromFile("F:/Capstone/LocalREp/Facial-Tracking2/data/faces.obj"); //easy3D
+	vector<uint32_t> meshIndices = readMeshTriangleIndicesFromFile("F:/Capstone/LocalREp/Facial-Tracking2/data/newfaces.obj"); //easy3D
+	//vector<easy3d::vec3> faceVerts = readFace3DFromObj(WAREHOUSE_PATH + "Tester_138/Blendshape/shape_22.obj"); //easy3D
+	vector<easy3d::vec3> faceVerts = readFace3DFromObj("F:/Capstone/LocalREp/Facial-Tracking2/data/newfaces.obj"); //easy3D
 	vector<int> all3dVertices = readVertexIdFromFile("F:/Capstone/LocalREp/Facial-Tracking2/data/lm_vert_internal_73.txt");   // same order as landmarks (Easy3D)
 
 	vector<int> poseIndices = {
@@ -348,10 +349,10 @@ int main() {
 	//===========================================================================
 	viewer.add_drawable(surface);
 	//viewer.add_model(mesh);        // the model must first be added to the viewer before accessing the drawables
-	viewer.add_drawable(vertices);
+	//viewer.add_drawable(vertices);
 	// Add the drawable to the viewer
 	viewer.add_drawable(surface);
-	viewer.add_drawable(vertices);
+	//viewer.add_drawable(vertices);
 	// Make sure everything is within the visible region of the viewer.
 	viewer.fit_screen();
 	// Run the viewer

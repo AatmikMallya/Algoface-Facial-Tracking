@@ -109,6 +109,29 @@ private:
 	vector<cv::Point2f>     _gtLms;
 };
 
+struct Regularization {
+	Regularization(int numWeights, const vector<double>& wr, double penalty) {
+		_numWeights = numWeights;
+		_wr = wr;
+		_penalty = penalty;
+	}
+	template <typename T>
+	bool operator()(const T* w, T* residual) const {
+
+		for (int i = 0; i < _numWeights; i++)
+		{
+			residual[i] = T(_wr[i]) - w[i];
+			residual[i] *= T(_penalty);
+		}
+		return true;
+	}
+
+private:
+	int             _numWeights = 0;
+	vector<double>  _wr;
+	double          _penalty;
+};
+
 //lms = 2D landmarks used to construct x - cx / f
 //pose = 1x6 vector with rotation and translation
 //image = needed to get cx and cy
@@ -126,8 +149,10 @@ bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Po
 	float cy = image.rows / 2.0;
 
 	vector<double> w(numExpressions, 0);        // numExpressions = 47
-	//w = w_exp;
-	//w[0] = 1;
+
+	vector<double> wr(numExpressions, 0);  //for regualrization
+	wr[22] = 1;
+
 	ceres::Problem problem;
 
 	//3D to 2D equations ((x/y) = (x/y)/z + f + c(x/y)) --> ((x/y) - c(x/y)) / f = (x/y)/z
@@ -140,7 +165,7 @@ bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Po
 	}
 
 	ReprojectErrorExp* repErrFunc = new ReprojectErrorExp(pose, numLms, multExp, gtLms);   // upload the required parameters
-	ceres::CostFunction* optimTerm = new ceres::AutoDiffCostFunction<ReprojectErrorExp, ceres::DYNAMIC, 46>(repErrFunc, numLms * 2);  // times 2 becase we have gtx and gty
+	ceres::CostFunction* optimTerm = new ceres::AutoDiffCostFunction<ReprojectErrorExp, ceres::DYNAMIC, 47>(repErrFunc, numLms * 2);  // times 2 becase we have gtx and gty
 	problem.AddResidualBlock(optimTerm, NULL, &w[0]);
 
 	// for (int i = 0; i < _numExpressions - 1; i++) {
@@ -155,9 +180,19 @@ bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Po
 	ceres::Solver::Summary summary;
 	//cout << "before solve" << endl;
 	ceres::Solve(options, &problem, &summary);
-	//cout << "before report" << endl;
+
+
+	float penalty = 2.0;
+	Regularization* regular = new Regularization(47, wr, penalty);
+	optimTerm = new ceres::AutoDiffCostFunction<Regularization, 47, 47>(regular);
+	problem.AddResidualBlock(optimTerm, NULL, &w[0]);
+
+	//ceres::Solver::Options options;
+	//options.max_num_iterations = 35;
+	//ceres::Solver::Summary summary;
+	//ceres::Solve(options, &problem, &summary);
+
 	cout << summary.BriefReport() << endl << endl;
-	//cout << "after report" << endl;
 	for (int i = 0; i < numExpressions; i++)
 	{
 		w_exp(i) = w[i];

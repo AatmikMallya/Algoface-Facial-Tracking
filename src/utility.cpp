@@ -1,6 +1,7 @@
 #include "utility.h"
 
 using namespace asu;
+#define NUM_OF_VERTICES 11510
 
 vector<cv::Point2f> Utility::readLandmarksFromFile(const std::string& path, const cv::Mat& image) {
 
@@ -94,4 +95,6 @@ vector<vector<uint32_t>> Utility::readQuadIndicesFromFile(const std::string& pat
 
     return quads;
 }
+
+
 
