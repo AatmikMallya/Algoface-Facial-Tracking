@@ -195,19 +195,17 @@ int main() {
 	landmarks inside ceres operator function residual block.*/
 	//********************************** ceres optimization
 	//bool boolOpt = optimize(multExp, lmsVec, poseVec, image, f, w); //first optimization
-	bool boolOpt = optimize(multExp, lmsVec, poseVec, image, f, w);
+	//bool boolOpt = optimize(multExp, lmsVec, poseVec, image, f, w);
 
 	/*8. Repeat this process by constantly updating your initial pose and expression parameter, for 3 iterations.
 	So for 3 times, you alternately optimize pose and expression and at each iteration you use your estimated outputs of the previous step*/
 	for (int opt = 0; opt < 1; opt++) // multiple optimizations
-	//while(!(optimize(multExp, lmsVec, poseVec, image, f, w)))
 	{
 		// create new face based on weights
 		for (int i = 0; i < 73; i++)
 		{
 			for (int j = 0; j < numExpressions; j++)
 			{
-
 				combinedExp[i].x += multExp[j][i].x * w[j];
 				combinedExp[i].y += multExp[j][i].y * w[j];
 				combinedExp[i].z += multExp[j][i].z * w[j];
