@@ -256,3 +256,54 @@ vector<int> readVertexIdFromFile(std::string path) {
 
     return vk;
 }
+
+void createFaceObj(const vector<float>& faceVec, int numVerts, std::string pathToOutputObjFile) {
+
+    // get the suffix
+    std::ifstream infile("D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/optFace.obj");
+    if (infile.fail()) {
+        std::cerr << "ERROR: couldn't open the suffix file to read from" << endl;
+        exit(-1);
+    }
+    std::string suffix((std::istreambuf_iterator<char>(infile)), (std::istreambuf_iterator<char>()));
+    infile.close();
+
+    std::ofstream outfile(pathToOutputObjFile);   // could be like "testing.obj"
+    if (outfile.fail()) {
+        std::cerr << "ERROR: couldn't open the sample output obj file to write to" << endl;
+        exit(-1);
+    }
+
+    for (int i = 0; i < numVerts; i++) {
+        size_t idx = i * 3;
+        outfile << "v " << std::to_string(faceVec[idx]) << " " << std::to_string(faceVec[idx + 1]) << " " << std::to_string(faceVec[idx + 2]) << endl;
+    }
+    outfile << suffix;
+    outfile.close();
+}
+
+void createFaceObj(const vector<cv::Point3f> faceVec, int numVerts, std::string pathToOutputObjFile)
+{
+
+    // get the suffix
+    std::ifstream infile("D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/optFace.obj");
+    if (infile.fail()) {
+        std::cerr << "ERROR: couldn't open the suffix file to read from" << endl;
+        exit(-1);
+    }
+    std::string suffix((std::istreambuf_iterator<char>(infile)), (std::istreambuf_iterator<char>()));
+    infile.close();
+
+    std::ofstream outfile(pathToOutputObjFile);   // could be like "testing.obj"
+    if (outfile.fail()) {
+        std::cerr << "ERROR: couldn't open the sample output obj file to write to" << endl;
+        exit(-1);
+    }
+
+    for (int i = 0; i < numVerts; i++) {
+        size_t idx = i * 3;
+        outfile << "v " << std::to_string(faceVec[i].x) << " " << std::to_string(faceVec[i].y) << " " << std::to_string(faceVec[i].z) << endl;
+    }
+    outfile << suffix;
+    outfile.close();
+}

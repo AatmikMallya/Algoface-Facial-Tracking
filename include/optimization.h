@@ -23,4 +23,6 @@ using std::vector;
 bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Point2f>& lms, const std::vector<double>& pose, const cv::Mat& image,
 	double f, Eigen::VectorXf& w_exp);
 
+
+
 #endif //OPTIMIZATION_H
