@@ -20,6 +20,7 @@ using std::vector;
 
 //vector optimize(const Eigen::MatrixXf& w_exp, //const Eigen::VectorXf& w,
 //    const vector<cv::Point2f>& lms, const Eigen::VectorXf& pose, const cv::Mat& image, double f, Eigen::Tensor<Eigen::Vector3f, 3>& shapeTensor);
+
 bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Point2f>& lms, const std::vector<double>& pose, const cv::Mat& image,
 	double f, Eigen::VectorXf& w_exp);
 
