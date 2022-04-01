@@ -56,11 +56,12 @@ string SHAPE_TENSOR_PATH = "D:/Desktop/2021FallSchool/CSE423/Github/Facial-Track
 //above
 //**************************************
 
+void visualizeFace(tensor3 rawTensor, Eigen::VectorXf w, Eigen::VectorXf identity_w);
 void createAllExpressions(tensor3 tensor, Eigen::VectorXf identity_w, int numVerts, std::vector<std::vector<cv::Point3f>>& avgMultExp);
 void createAllIdentities(tensor3 tensor, Eigen::VectorXf w, int numVerts, std::vector<std::vector<cv::Point3f>>& allIdnOptExp);
 void linearCombination(int numVerts, int numCombinations, std::vector<std::vector<cv::Point3f>> mult, Eigen::VectorXf w, std::vector<cv::Point3f>& linCombo);
 void visualization3D(int numVerts, std::vector<cv::Point3f> linCombo);
-void getPose(std::vector<float>& poseVec, const cv::Mat& rvec, const cv::Mat& tvec);
+void getPose(std::vector<double>& poseVec, const cv::Mat& rvec, const cv::Mat& tvec);
 
 int main() {
 
@@ -126,7 +127,7 @@ int main() {
     
     //for (int opt = 0; opt < 2; opt++)
     //{
-        vector<vector<cv::Point3f>> allExp(numExpressions);
+        vector<vector<cv::Point3f>> avgMultExp(numExpressions);
     
         vector<cv::Point3f> singleIdn(n_vectors);
         vector<vector<cv::Point3f>> multIdn(numIdentities);
@@ -160,7 +161,7 @@ int main() {
                     combinedIdn[i].z += (multIdn[j][i].z * identity_w[j]);
                 }
             }
-            allExp[j] = combinedIdn;
+            avgMultExp[j] = combinedIdn;
         }
 
 
@@ -171,24 +172,18 @@ int main() {
 
 
         // pose estimation for neutral expression
-        cv::solvePnP(allExp[0], lmsVec, cameraMatrix, cv::Mat(), rvec, tvec); //distCoeffs -> cv::Mat
+        cv::solvePnP(avgMultExp[0], lmsVec, cameraMatrix, cv::Mat(), rvec, tvec); //distCoeffs -> cv::Mat
 
         //cv::Mat poseMat;
         //cv::hconcat(rvec, tvec, poseMat);
         vector<double> poseVec(6, 0);
+        getPose(poseVec, rvec, tvec);
 
-        poseVec[0] = rvec.at<double>(0);
-        poseVec[1] = rvec.at<double>(1);
-        poseVec[2] = rvec.at<double>(2);
-
-        poseVec[3] = tvec.at<double>(0);
-        poseVec[4] = tvec.at<double>(1);
-        poseVec[5] = tvec.at<double>(2);
-
+        visualizeFace(rawTensor, w, identity_w);
 
         // optimization expression
-        optimize(allExp, lmsVec, poseVec, image, f, w);
-
+        optimize(avgMultExp, lmsVec, poseVec, image, f, w);
+        /*
         vector<vector<cv::Point3f>> allIdn(numIdentities);
 
         vector<cv::Point3f> singleExp(n_vectors); // holds 1 expression with 73 vertices used to create multExp
@@ -229,66 +224,37 @@ int main() {
 
             allIdn[k] = combinedExp;
         }
+        */
 
-        cv::solvePnP(allIdn[0], lmsVec, cameraMatrix, cv::Mat(), rvec, tvec);
-        poseVec[0] = rvec.at<double>(0);
-        poseVec[1] = rvec.at<double>(1);
-        poseVec[2] = rvec.at<double>(2);
-        poseVec[3] = tvec.at<double>(0);
-        poseVec[4] = tvec.at<double>(1);
-        poseVec[5] = tvec.at<double>(2);
+        std::vector<std::vector<cv::Point3f>> allIdnOptExp(numIdentities);
+        createAllIdentities(shapeTensor, w, n_vectors, allIdnOptExp);
+        linearCombination(n_vectors, numIdentities, allIdnOptExp, identity_w, combinedIdn);
+        cv::solvePnP(combinedIdn, lmsVec, cameraMatrix, cv::Mat(), rvec, tvec);
+        getPose(poseVec, rvec, tvec);
 
-        // optimize identity
-        identityOptimize(allIdn, lmsVec, poseVec, image, f, identity_w);
+        /* optimize for identity */
+        identityOptimize(allIdnOptExp, lmsVec, poseVec, image, f, identity_w);
 
-        for (int j = 0; j < numExpressions; j++)
-        {
-            for (int i = 0; i < n_vectors; i++)
-            {
-                for (int j = 0; j < numIdentities; j++)
-                {
-                    combinedIdn[i].x += (multIdn[j][i].x * identity_w[j]);
-                    combinedIdn[i].y += (multIdn[j][i].y * identity_w[j]);
-                    combinedIdn[i].z += (multIdn[j][i].z * identity_w[j]);
-                }
-            }
-            allExp[j] = combinedIdn;
-        }
+        visualizeFace(rawTensor, w, identity_w);
 
-        cv::solvePnP(allIdn[0], lmsVec, cameraMatrix, cv::Mat(), rvec, tvec);
-        poseVec[0] = rvec.at<double>(0);
-        poseVec[1] = rvec.at<double>(1);
-        poseVec[2] = rvec.at<double>(2);
-        poseVec[3] = tvec.at<double>(0);
-        poseVec[4] = tvec.at<double>(1);
-        poseVec[5] = tvec.at<double>(2);
+        createAllExpressions(shapeTensor, identity_w, n_vectors, avgMultExp);
+        linearCombination(n_vectors, numExpressions, avgMultExp, w, combinedIdn);
 
 
-        optimize(allExp, lmsVec, poseVec, image, f, w);
+        cv::solvePnP(combinedIdn, lmsVec, cameraMatrix, cv::Mat(), rvec, tvec);
+        getPose(poseVec, rvec, tvec);
 
-        for (int k = 0; k < numIdentities; k++)
-        {
-            for (int i = 0; i < n_vectors; i++)
-            {
-                for (int j = 0; j < numExpressions; j++)
-                {
-                    combinedExp[i].x += multExp[j][i].x * w[j];
-                    combinedExp[i].y += multExp[j][i].y * w[j];
-                    combinedExp[i].z += multExp[j][i].z * w[j];
-                }
-            }
-            allIdn[k] = combinedExp;
-        }
+        // expression optimization
+        optimize(avgMultExp, lmsVec, poseVec, image, f, w);
 
-        cv::solvePnP(allIdn[0], lmsVec, cameraMatrix, cv::Mat(), rvec, tvec);
-        poseVec[0] = rvec.at<double>(0);
-        poseVec[1] = rvec.at<double>(1);
-        poseVec[2] = rvec.at<double>(2);
-        poseVec[3] = tvec.at<double>(0);
-        poseVec[4] = tvec.at<double>(1);
-        poseVec[5] = tvec.at<double>(2);
+        // create new face based on optimized expression weights
+        createAllIdentities(shapeTensor, w, n_vectors, allIdnOptExp);
+        linearCombination(n_vectors, numIdentities, allIdnOptExp, identity_w, combinedIdn);
+        cv::solvePnP(combinedIdn, lmsVec, cameraMatrix, cv::Mat(), rvec, tvec);
+        getPose(poseVec, rvec, tvec);
 
-        identityOptimize(allIdn, lmsVec, poseVec, image, f, identity_w);
+        /* optimize for identity */
+        identityOptimize(allIdnOptExp, lmsVec, poseVec, image, f, identity_w);
 
     //}
 
@@ -339,40 +305,53 @@ int main() {
     */
 
     //save identity and expression face to file
-    vector<cv::Point3f> allFace(numDenseVerts);
-    std::vector<std::vector<cv::Point3f>> rawOpt(numIdentities);
-    for (int k = 0; k < numIdentities; k++)
-    {
-        vector<cv::Point3f> singleExp(numDenseVerts); // holds 1 expression with 11510 vertices used to create multExp
-        vector<vector<cv::Point3f>> multExp(numExpressions); //holds 47 expressions with 11510 vertices used to create combined exp
-        for (int i = 0; i < numExpressions; i++)//numExpresion is 47
-        {
-            //11510 vertices
-            for (int j = 0; j < numDenseVerts; j++) {
-                Eigen::Vector3f tens_vec = rawTensor(k, i, j);
-                cv::Point3f cv_vec;
-                cv_vec.x = tens_vec.x();
-                cv_vec.y = tens_vec.y();
-                cv_vec.z = tens_vec.z();
-                singleExp[j] = cv_vec;
-            }
-            multExp[i] = singleExp;
-        }
+    vector<vector<cv::Point3f>> allExpD(numExpressions);
+    vector<cv::Point3f> allIdnD(numDenseVerts); // 11510 x 47
 
+    for (int j = 0; j < numExpressions; j++)
+    {
+        std::vector<cv::Point3f> singleIdn(numDenseVerts);
+        std::vector<std::vector<cv::Point3f>> multIdn(numIdentities);
+        // 150 identities
+        for (int k = 0; k < numIdentities; k++)
+        {
+            for (int i = 0; i < numDenseVerts; i++)
+            {
+                Eigen::Vector3f tens_vec = rawTensor(k, j, i);
+                cv::Point3f conv_vec;
+                conv_vec.x = tens_vec.x();
+                conv_vec.y = tens_vec.y();
+                conv_vec.z = tens_vec.z();
+                singleIdn[i] = conv_vec;
+            }
+            multIdn[k] = singleIdn;
+        }
+        // create an average face
+        std::vector<cv::Point3f> combinedIdn(numDenseVerts);
         for (int i = 0; i < numDenseVerts; i++)
         {
-            for (int j = 0; j < numExpressions; j++)
+            for (int j = 0; j < numIdentities; j++)
             {
-                allFace[i].x += (multExp[j][i].x * w[j]) * identity_w[k];
-                allFace[i].y += (multExp[j][i].y * w[j]) * identity_w[k];
-                allFace[i].z += (multExp[j][i].z * w[j]) * identity_w[k];
+                combinedIdn[i].x += (multIdn[j][i].x * identity_w[j]);
+                combinedIdn[i].y += (multIdn[j][i].y * identity_w[j]);
+                combinedIdn[i].z += (multIdn[j][i].z * identity_w[j]);
             }
+        }
+        allExpD[j] = combinedIdn;
+    }
+    
+    for (int i = 0; i < numDenseVerts; i++)
+    {
+        for (int j = 0; j < numExpressions; j++)
+        {
+            allIdnD[i].x += (allExpD[j][i].x * w[j]);
+            allIdnD[i].y += (allExpD[j][i].y * w[j]);
+            allIdnD[i].z += (allExpD[j][i].z * w[j]);
         }
     }
 
 
-
-    createFaceObj(allFace, 11510, "D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/optFaceNew.obj");
+    createFaceObj(allIdnD, 11510, "D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/optFaceNew.obj");
 
 
 
@@ -483,12 +462,128 @@ int main() {
 
 }
 
-void visualizeFace(vector<cv::Point3f> face)
+void visualizeFace(tensor3 rawTensor, Eigen::VectorXf w, Eigen::VectorXf identity_w)
 {
-    createFaceObj(face, 11510, "D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/optFaceNew.obj");
+    int numDenseVerts = 11510;
+    int numIdentities = 150;
+    int numExpressions = 47;
+
+    vector<vector<cv::Point3f>> allExpD(numExpressions);
+    vector<cv::Point3f> allIdnD(numDenseVerts); // 11510 x 47
+
+    for (int j = 0; j < numExpressions; j++)
+    {
+        std::vector<cv::Point3f> singleIdn(numDenseVerts);
+        std::vector<std::vector<cv::Point3f>> multIdn(numIdentities);
+        // 150 identities
+        for (int k = 0; k < numIdentities; k++)
+        {
+            for (int i = 0; i < numDenseVerts; i++)
+            {
+                Eigen::Vector3f tens_vec = rawTensor(k, j, i);
+                cv::Point3f conv_vec;
+                conv_vec.x = tens_vec.x();
+                conv_vec.y = tens_vec.y();
+                conv_vec.z = tens_vec.z();
+                singleIdn[i] = conv_vec;
+            }
+            multIdn[k] = singleIdn;
+        }
+        // create an average face
+        std::vector<cv::Point3f> combinedIdn(numDenseVerts);
+        for (int i = 0; i < numDenseVerts; i++)
+        {
+            for (int j = 0; j < numIdentities; j++)
+            {
+                combinedIdn[i].x += (multIdn[j][i].x * identity_w[j]);
+                combinedIdn[i].y += (multIdn[j][i].y * identity_w[j]);
+                combinedIdn[i].z += (multIdn[j][i].z * identity_w[j]);
+            }
+        }
+        allExpD[j] = combinedIdn;
+    }
+
+    for (int i = 0; i < numDenseVerts; i++)
+    {
+        for (int j = 0; j < numExpressions; j++)
+        {
+            allIdnD[i].x += (allExpD[j][i].x * w[j]);
+            allIdnD[i].y += (allExpD[j][i].y * w[j]);
+            allIdnD[i].z += (allExpD[j][i].z * w[j]);
+        }
+    }
+
+
+    createFaceObj(allIdnD, 11510, "D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/optFaceNew.obj");
+
+
+
+    //********************************** creating 3D face in easy3d
 
     vector<uint32_t> meshIndices = readMeshTriangleIndicesFromFile("D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/optFace.obj"); //easy3D
+    //vector<easy3d::vec3> faceVerts = readFace3DFromObj(WAREHOUSE_PATH + "Tester_138/Blendshape/shape_22.obj"); //easy3D
     vector<easy3d::vec3> faceVerts = readFace3DFromObj("D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/optFaceNew.obj"); //easy3D
+    vector<int> all3dVertices = readVertexIdFromFile("D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/lm_vert_internal_73.txt");   // same order as landmarks (Easy3D)
+
+    int internal73[] = { 3984,10818,499,10543,413,3867,10574,9053,6698,1929,1927,6747,9205,7112,9380,3981,4277,10854,708,
+        10742,4159,7135,9413,2138,2127,1986,6969,4437,760,4387,4346,10885,4370,766,4393,7330,7236,7275,9471,7271,7284,2191,
+        7256,4227,294,279,3564,10461,8948,6418,6464,6441,6312,9236,8972,3262,3676,182,1596,1607,6575,1633,8864,6644,1790,
+        3224,3270,251,1672,1621,6262,6162,10346
+    };
+
+    //turn into matrix instead of vectors probably
+    vector<vector<int>> allcs = {
+      { 3975, 10739, 4223, 10823, 4493, 10254, 5492, 10100, 5196, 10101, 2853, 10104, 5197, 10116 }//14
+    , { 10757, 4152, 10760, 4215, 10828, 4505, 10960, 5498, 11289, 5169, 11206, 4976 }//13
+    , { 10646, 3918, 10650, 5547, 1339, 5549, 1340, 5507, 1320, 5509, 1146, 5161, 1053 }//13
+    , { 393, 3637, 499, 3874, 508, 3844, 493, 5512, 1321, 5510, 1150, 5040 }//12
+    , { 485, 3701, 424, 3699, 501, 3861, 510, 3879, 497, 3855, 1323, 5178, 1154, 5117, 1126 }//15
+    , { 10527, 3831, 10536, 3613, 10539, 3865, 10633, 3883, 10614, 3839 }//10
+    , { 10575, 3812, 10574, 3658, 10573, 3869, 10635, 3884, 10623, 3848 }//10
+    , { 9137, 3607, 9053, 6703, 9150, 3611, 9045, 3872, 9180, 3887, 9190, 6725 }//12
+    , { 9079, 6698, 9148, 6541, 9078, 6755, 9178, 6773, 9188, 6733 }//10
+    , { 9105, 6723, 9159, 6505, 9104, 6754, 9176, 6768, 9186, 6727 }//10
+    , { 6578, 9100, 6718, 9157, 6577, 9099, 6751, 9174, 6764, 9184, 6738 }//11
+    , { 1908, 6531, 1818, 6742, 1924, 6744, 1933, 6759, 1918, 8386, 2746, 8388, 2575 }//13
+    , { 2762, 8419, 2763, 8421, 2764, 8424, 2765, 8426, 2745, 8385, 2571 }//11
+    , { 2089, 7037, 2071, 7111, 2110, 7113, 2246, 8377, 2741, 8375, 2576, 7920, 2514 }//13
+    , { 6865, 2112, 7117, 2248, 5942, 1528, 5940, 1425, 5733, 1426, 5731, 1432, 5746 } };//13
+
+    vector<int> poseIndices = {
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,  //face contour
+            21, 22, 23, 24, 25, 26,                            //left eyebrow
+            18, 17, 16, 15, 20, 19,                            //right eyebrow
+            27, 66, 28, 69, 29, 68, 30, 67,                    //left eye
+            33, 70, 32, 73, 31, 72, 34, 71,                    //right eye
+            35, 36, 37, 38, 44, 39, 45, 40, 41, 42, 43,        //nose contour
+            65,												  //nose tip
+            46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57,    //outer mouth
+            63, 62, 61, 60, 59, 58						      //inner mouth
+    };
+    //vector<int> poseIndices = { 27, 31, 35, 39, 54, 55, 61 };
+
+    //landmark vertices ordering
+    //vk holds internal73 numbers
+    vector<int> vk(poseIndices.size());
+    for (int i = 0; i < vk.size(); i++)
+    {
+        vk[i] = all3dVertices[poseIndices[i]];
+    }
+
+    //contour vertices
+    //faceVerts holds point3f
+    vector<easy3d::vec3> contourVerts(allcs.size());
+    for (int i = 0; i < contourVerts.size(); i++)
+    {
+        contourVerts[i] = faceVerts[allcs[i][0]];
+    }
+
+    //**************************************
+    //bottom
+    //**************************************
+
+    //--- always initialize viewer first before doing anything else for 3d visualization 
+    //create default East3D viewer, must be created before drawables
 
     easy3d::Viewer viewer("3d visualization");
 
@@ -498,11 +593,20 @@ void visualizeFace(vector<cv::Point3f> face)
     surface->update_element_buffer(meshIndices);
     surface->set_uniform_coloring(easy3d::vec4(0.8, 0.8, 0.8, 1.0));
 
+    // vertices corresponding to given buffer with given characteristics
+    auto vertices = new easy3d::PointsDrawable("vertices");
+    vertices->update_vertex_buffer(contourVerts); //try lmVerts, contourVerts
+    vertices->set_uniform_coloring(easy3d::vec4(0.0, 0.9, 0.0, 1.0));
+    vertices->set_impostor_type(easy3d::PointsDrawable::SPHERE);
+    vertices->set_point_size(10); //size in pixels of vertices
+
     // add drawable objects to viewer
     viewer.add_drawable(surface);
+    //viewer.add_drawable(vertices); //comment to toggle vertices
 
     // Add the drawable to the viewer
     viewer.add_drawable(surface);
+    //viewer.add_drawable(vertices); //comment to toggle vertices
 
     viewer.fit_screen(); // Make sure everything is within the visible region of the viewer.
     viewer.run(); // Run the viewer
@@ -510,7 +614,7 @@ void visualizeFace(vector<cv::Point3f> face)
 
 void visualization3D(int numVerts, std::vector<cv::Point3f> linCombo)
 {
-    vector<uint32_t> meshIndices = readMeshTriangleIndicesFromFile("C:/Users/stefa/Desktop/Capstone/repo/Facial-Tracking/data/face.obj");
+    vector<uint32_t> meshIndices = readMeshTriangleIndicesFromFile("D:/Desktop/2021FallSchool/CSE423/Github/Facial-Tracking/data/optFace.obj");
 
     vector<int> allVerts = {
         5154, 11283, 5157, 11284, 5181, 11295, 5494, 10957, 4499, 10822, 4211, 10803, 4128, 10804,
@@ -587,28 +691,28 @@ void createAllExpressions(tensor3 tensor,
     /* creates a matrix of all the expressions for the average identity */
     int numExpressions = 47;
     int numIdentities = 150;
-    for (int e = 0; e < numExpressions; e++)
+    for (int j = 0; j < numExpressions; j++)
     {
         std::vector<cv::Point3f> singleIdn(numVerts);
         std::vector<std::vector<cv::Point3f>> multIdn(numIdentities);
         // 150 identities
-        for (int j = 0; j < numIdentities; j++)
+        for (int k = 0; k < numIdentities; k++)
         {
             for (int i = 0; i < numVerts; i++)
             {
-                Eigen::Vector3f tens_vec = tensor(j, e, i);
+                Eigen::Vector3f tens_vec = tensor(k, j, i);
                 cv::Point3f conv_vec;
                 conv_vec.x = tens_vec.x();
                 conv_vec.y = tens_vec.y();
                 conv_vec.z = tens_vec.z();
                 singleIdn[i] = conv_vec;
             }
-            multIdn[j] = singleIdn;
+            multIdn[k] = singleIdn;
         }
         // create an average face
         std::vector<cv::Point3f> combinedIdn(numVerts);
         linearCombination(numVerts, numIdentities, multIdn, identity_w, combinedIdn);
-        avgMultExp[e] = combinedIdn;
+        avgMultExp[j] = combinedIdn;
     }
 }
 
@@ -644,7 +748,7 @@ void createAllIdentities(tensor3 tensor,
     }
 }
 
-void getPose(std::vector<float>& poseVec, const cv::Mat& rvec, const cv::Mat& tvec)
+void getPose(std::vector<double>& poseVec, const cv::Mat& rvec, const cv::Mat& tvec)
 {
     poseVec[0] = rvec.at<double>(0);
     poseVec[1] = rvec.at<double>(1);
@@ -653,10 +757,10 @@ void getPose(std::vector<float>& poseVec, const cv::Mat& rvec, const cv::Mat& tv
     poseVec[3] = tvec.at<double>(0);
     poseVec[4] = tvec.at<double>(1);
     poseVec[5] = tvec.at<double>(2);
-    for (auto pose : poseVec)
-    {
-        cout << pose << endl;
-    }
+    //for (auto pose : poseVec)
+    //{
+    //    cout << pose << endl;
+    //}
 }
 
 

@@ -150,10 +150,10 @@ bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Po
 	double cy = image.rows / 2.0;
 
 	vector<double> w(numExpressions - 1, 0);        // numExpressions = 47
-	w[21] = 1;
+	//w[21] = 1;
 
 	vector<double> wr(numExpressions, 0);
-	//wr[21] = 1; //changes the facial expression
+	wr[21] = 1; //changes the facial expression
 
 
 	ceres::Problem problem;
@@ -197,7 +197,7 @@ bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Po
 	cout << summary.BriefReport() << endl << endl;
 
 	float sumw = 0;
-	for (int i = 1; i < numExpressions - 1; i++)
+	for (int i = 0; i < numExpressions - 1; i++)
 	{
 		w_exp(i + 1) = w[i];
 		sumw += w[i];
