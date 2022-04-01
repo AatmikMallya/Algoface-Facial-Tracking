@@ -150,7 +150,7 @@ bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Po
 	double cy = image.rows / 2.0;
 
 	vector<double> w(numExpressions - 1, 0);        // numExpressions = 47
-	//w[21] = 1;
+	w[21] = 1;
 
 	vector<double> wr(numExpressions, 0);
 	//wr[21] = 1; //changes the facial expression

@@ -141,7 +141,7 @@ bool identityOptimize(std::vector<std::vector<cv::Point3f>> multIdn, const vecto
 	double cy = image.rows / 2.0;
 
 	vector<double> w(numIdentity, 0);        // numExpressions = 47
-	//w[137] = 1;
+	w[137] = 1;
 
 	vector<double> wr(numIdentity, 0);
 	//wr[137] = 1; //changes the face identity
