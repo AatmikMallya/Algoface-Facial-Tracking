@@ -1,5 +1,5 @@
-#ifndef OPTIMIZATION_H
-#define OPTIMIZATION_H
+#ifndef IDENTITYOPTIMIZATION_H
+#define IDENTITYOPTIMIZATION_H
 
 #include <iostream>
 #include <vector>
@@ -15,9 +15,8 @@ using std::cout;
 using std::endl;
 using std::vector;
 
-
-bool optimize(const vector<cv::Point2f>& lms,
+bool identityOptimize(const vector<cv::Point2f>& lms,
     const std::vector<float>& pose, const cv::Mat& image, float f, Eigen::VectorXf& w_exp,
-    const std::vector<std::vector<cv::Point3f>>& multExp);
+    const std::vector<std::vector<cv::Point3f>>& multIdn);
 
-#endif //OPTIMIZATION_H
+#endif //IDENTITYOPTIMIZATION_H
