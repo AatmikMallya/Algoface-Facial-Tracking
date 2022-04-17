@@ -89,27 +89,30 @@ private:
 
 struct Regularization {
 
-	Regularization(int numWeights, const vector<double>& wr, double penalty) {
+	Regularization(int numWeights, double penalty) {
 		_numWeights = numWeights;
-		_wr = wr;
 		_penalty = penalty;
 	}
 
 	template <typename T>
 	bool operator()(const T* w, T* residual) const {
+		
+		T sum = T(0);
 
 		for (int i = 0; i < _numWeights; i++) {
 
-			residual[i] = T(_wr[i]) - w[i];
-			residual[i] *= T(_penalty);
+			sum += w[i] * w[i];
 		}
-		//cout << "program got here2" << endl;
+
+		residual[0] = sum - T(1);
+
+		residual[0] *= T(_penalty);
+
 		return true;
 	}
 
 private:
 	int							_numWeights = 0;
-	std::vector<double>			_wr;
 	double						_penalty;
 };
 
@@ -123,28 +126,17 @@ private:
 bool identityOptimize(std::vector<std::vector<cv::Point3f>> multIdn, const vector<cv::Point2f>& lms,
 	const std::vector<double>& pose, const cv::Mat& image, double f, Eigen::VectorXf& w_idn)
 {
-	/*
-	//3D slice of matrix
-	Eigen::MatrixXf sparseBlendshapes;
-	for (int i = 0; i < 47; i++)
-	{
-		for (int j = 0; j < 73; j++)
-		{
-			sparseBlendshapes = shapeTensor(137, i, j);
-		}
-	}
-	*/
 
 	int numIdentity = 150;
 	int numLms = lms.size(); //73
 	double cx = image.cols / 2.0;
 	double cy = image.rows / 2.0;
 
-	vector<double> w(numIdentity, 0);        // numExpressions = 47
+	vector<double> w(numIdentity, 1.0/150.0);        // numExpressions = 47
 	//w[137] = 1;
 
-	vector<double> wr(numIdentity, 0);
-	wr[137] = 1; //changes the face identity
+	//vector<double> wr(numIdentity, 0);
+	//wr[137] = 1; //changes the face identity
 
 
 	ceres::Problem problem;
@@ -164,31 +156,39 @@ bool identityOptimize(std::vector<std::vector<cv::Point3f>> multIdn, const vecto
 	problem.AddResidualBlock(optimTerm, NULL, &w[0]);
 
 	for (int i = 0; i < numIdentity; i++) {
-		problem.SetParameterLowerBound(&w[0], i, 0.0);   // first argument must be w of ZERO and the second is the index of interest
+		problem.SetParameterLowerBound(&w[0], i, -1.0);   // first argument must be w of ZERO and the second is the index of interest
 		problem.SetParameterUpperBound(&w[0], i, 1.0);    // also the boundaries should be set after adding the residual block
 	}
+	
 
 	//regularization for identity optimization
-	float penalty = 1.0;
-	Regularization* regular = new Regularization(150, wr, penalty); //numIdentity
-	optimTerm = new ceres::AutoDiffCostFunction<Regularization, 150, 150>(regular);
-	problem.AddResidualBlock(optimTerm, NULL, &w[0]);
+	float penalty = 0.1;
+	Regularization* regular = new Regularization(150, penalty); //numIdentity
+	ceres::CostFunction* regTerm = new ceres::AutoDiffCostFunction<Regularization, 1, 150>(regular);
+	problem.AddResidualBlock(regTerm, NULL, &w[0]);
 
-	//Error = proj + regularizatiopn(penalty)
+	//Error = proj + regularization(penalty)
 
-	//cout << "program got here" << endl;
 
 	ceres::Solver::Options options;
 	//options.logging_type = ceres::SILENT;
-	options.max_num_iterations = 50;
+	options.max_num_iterations = 30;
 	ceres::Solver::Summary summary;
 	ceres::Solve(options, &problem, &summary);
+
 	cout << summary.BriefReport() << endl << endl;
 
+	double sum = 0;
 	for (int i = 0; i < numIdentity; i++)
 	{
 		w_idn(i) = w[i];
+		//cout << w[i] << endl;
+		sum += w[i];
 	}
+	//cout << "sum " << sum << endl;
+
+	//exit(1);
+
 	//cout << "program got here" << endl;
 	//for (int i = 0; i < w.size(); i++)
 	//{

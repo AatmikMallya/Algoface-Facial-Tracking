@@ -71,9 +71,9 @@ struct ReprojectErrorExp {
 			ceres::AngleAxisRotatePoint(extrinsicsVec, vert, rotatedVert);
 
 			// translation
-			rotatedVert[0] += extrinsicsVec[3];
-			rotatedVert[1] += extrinsicsVec[4];
-			rotatedVert[2] += extrinsicsVec[5];
+			rotatedVert[0] += extrinsicsVec[3]; //X
+			rotatedVert[1] += extrinsicsVec[4]; //Y
+			rotatedVert[2] += extrinsicsVec[5]; //Z
 
 			//================= handling the residual block
 
@@ -82,7 +82,7 @@ struct ReprojectErrorExp {
 
 			residual[2 * i] = T(_gtLms[i].x) - xp;    // if you follows the steps above, you can see xp and yp are directly influenced by w, as if   
 			residual[2 * i + 1] = T(_gtLms[i].y) - yp;    // you are optimizing the effect w_exp on xp and yp, and their yielded error.
-
+		
 		}
 
 		return true;
@@ -111,7 +111,6 @@ struct Regularization {
 			residual[i] = T(_wr[i]) - w[i];
 			residual[i] *= T(_penalty);
 		}
-		//cout << "program got here2" << endl;
 		return true;
 	}
 
@@ -153,7 +152,7 @@ bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Po
 	//w[21] = 1;
 
 	vector<double> wr(numExpressions, 0);
-	wr[21] = 1; //changes the facial expression
+	wr[21] = 1.0; //changes the facial expression
 
 
 	ceres::Problem problem;
@@ -178,31 +177,33 @@ bool optimize(std::vector<std::vector<cv::Point3f>> multExp, const vector<cv::Po
 		 problem.SetParameterUpperBound(&w[0], i, 1.0);    // also the boundaries should be set after adding the residual block
 	}
 
-	//note: without regularization it has to be open mouth, the small penalties make it open mouth
+
 	//regularization for expression optimization
-	float penalty = 1.0;
+	double penalty = 1.0;
 	Regularization* regular = new Regularization(46, wr, penalty); //numExpressions - 1
-	optimTerm = new ceres::AutoDiffCostFunction<Regularization, 46, 46>(regular);
-	problem.AddResidualBlock(optimTerm, NULL, &w[0]);
+	ceres::CostFunction* regTerm = new ceres::AutoDiffCostFunction<Regularization, 46, 46>(regular);
+	problem.AddResidualBlock(regTerm, NULL, &w[0]);
 
 	//Error = proj + regularizatiopn(penalty)
 
-	//cout << "program got here" << endl;
 
 	ceres::Solver::Options options;
 	//options.logging_type = ceres::SILENT;
-	options.max_num_iterations = 50;
+	options.max_num_iterations = 35;
 	ceres::Solver::Summary summary;
 	ceres::Solve(options, &problem, &summary);
+
 	cout << summary.BriefReport() << endl << endl;
 
-	float sumw = 0;
+	double sumw = 0;
 	for (int i = 0; i < numExpressions - 1; i++)
 	{
 		w_exp(i + 1) = w[i];
 		sumw += w[i];
+		//cout << (double) w[i] << endl;
 	}
 	w_exp(0) = 1 - sumw;
+	//cout << sumw << endl;
 
 	//for (int i = 0; i < w.size(); i++)
 	//{

@@ -12,6 +12,25 @@
 
 #define NUM_OF_VERTICES 11510
 
+void readTensorFaster(string& tensorPath, vector<vector<vector<float>>>& allFaceVerts) { 
+    //ex tensorPath = "raw_tensor.bin" or "shape_tensor.bin"
+    std::ifstream infile(tensorPath, std::ios::in | std::ios::binary);
+    if (infile.fail()) {
+        std::cerr << "ERROR" << endl;
+        exit(-1);
+    }
+    int faceVecLen = NUM_OF_VERTICES;
+
+    for (int i = 0; i < 150; i++) {
+        for (int e = 0; e < 47; e++) {
+            vector<float> face(faceVecLen * 3); //11510 * (x,y,z) vertices
+            infile.read((char*)&face[0], faceVecLen * 3 * sizeof(float));
+            allFaceVerts[i][e] = face;
+        }
+    }
+    infile.close();
+}
+
 // Reads vertices from each expression for each user in the warehouse
 void buildRawTensor(string& warehousePath, string& outfile, tensor3& rawTensor) {
     warehousePath += "Tester_";
