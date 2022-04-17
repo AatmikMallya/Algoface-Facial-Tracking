@@ -83,25 +83,27 @@ private:
 };
 
 struct Regularization {
-	Regularization(int numWeights, const vector<double>& wr, double penalty) {
+	Regularization(int numWeights, double penalty) {
 		_numWeights = numWeights;
-		_wr = wr;
 		_penalty = penalty;
 	}
 	template <typename T>
 	bool operator()(const T* w, T* residual) const {
 
+		T sum = T(0);
 		for (int i = 0; i < _numWeights; i++)
 		{
-			residual[i] = T(_wr[i]) - w[i];
-			residual[i] *= T(_penalty);
+			sum += w[i] * w[i];
 		}
+
+		residual[0] = sum - T(1);
+		residual[0] *= T(_penalty);
+
 		return true;
 	}
 
 private:
 	int             _numWeights = 0;
-	vector<double>  _wr;
 	double          _penalty;
 };
 
@@ -111,16 +113,13 @@ bool identityOptimize(const vector<cv::Point2f>& lms,
 	const std::vector<std::vector<cv::Point3f>>& multIdn)
 {
 
-
-
 	int numIdentities = 150;
 	int numLms = lms.size();
 	float cx = image.cols / 2.0;
 	float cy = image.rows / 2.0;
 
-	vector<double> w(numIdentities, 0);
-	vector<double> wr(numIdentities, 0);
-	wr[137] = 1;
+	vector<double> w(numIdentities, 1.0/150.0);
+	
 
 	ceres::Problem problem;
 
@@ -138,12 +137,12 @@ bool identityOptimize(const vector<cv::Point2f>& lms,
 	problem.AddResidualBlock(optimTerm, NULL, &w[0]);
 
 	for (int i = 0; i < numIdentities; i++) {
-		problem.SetParameterLowerBound(&w[0], i, 0.0);   // first argument must be w of ZERO and the second is the index of interest
+		problem.SetParameterLowerBound(&w[0], i, -1.0);   // first argument must be w of ZERO and the second is the index of interest
 		problem.SetParameterUpperBound(&w[0], i, 1.0);    // also the boundaries should be set after adding the residual block
 	}
 
 	float penalty = 1.0;
-	Regularization* regular = new Regularization(150, wr, penalty);
+	Regularization* regular = new Regularization(150, penalty);
 	ceres::CostFunction* reg = new ceres::AutoDiffCostFunction<Regularization, 150, 150>(regular);
 	problem.AddResidualBlock(reg, NULL, &w[0]);
 
@@ -156,12 +155,6 @@ bool identityOptimize(const vector<cv::Point2f>& lms,
 	for (int i = 0; i < numIdentities; i++)
 	{
 		w_idn(i) = w[i];
-	}
-
-	cout << "************Identity Weights************" << endl;
-	for (int i = 0; i < 150; i++)
-	{
-		cout << w_idn(i) << endl;
 	}
 
 	return summary.termination_type == ceres::TerminationType::CONVERGENCE;

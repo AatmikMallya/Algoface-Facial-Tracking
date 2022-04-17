@@ -13,7 +13,7 @@
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <fstream>
-
+ 
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/calib3d/calib3d.hpp"
@@ -147,7 +147,8 @@ int main() {
 
     /* creates a matrix of all the expressions for the average identity */
 
-    createAllExpressions(rawTensor, identity_w, numDenseVerts, avgMultExp);
+    createAllExpressions(shapeTensor, identity_w, numShapeVerts, avgMultExp);
+
    /* std::vector<cv::Point3f> singleFace(numDenseVerts);
     for (int expNum = 0; expNum < numExpressions; expNum++)
     {
@@ -179,26 +180,33 @@ int main() {
     // solves rvec and tvec for average face neutral expression
     cv::solvePnP(avgMultExp[0], lmsVec, cameraMatrix, cv::Mat(), rvec, tvec);
     getPose(poseVec, rvec, tvec);
-
+    
     // optimize for expression and identity twice
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 1; i++)
     {
         // expression optimization
         optimize(lmsVec, poseVec, image, f, w, avgMultExp);
 
         /* apply optimized expression weights and create a vector of every identity */
-        createAllIdentities(shapeTensor, w, 73, allIdnOptExp);
+        createAllIdentities(shapeTensor, w, numShapeVerts, allIdnOptExp);
         linearCombination(numShapeVerts, numIdentities, allIdnOptExp, identity_w, combinedIdn);
-
+        //sparse3D(combinedIdn);
         cv::solvePnP(combinedIdn, lmsVec, cameraMatrix, cv::Mat(), rvec, tvec);
         getPose(poseVec, rvec, tvec);
+        //sparse3D(allIdnOptExp[102]);
 
         /* optimize for identity */
         identityOptimize(lmsVec, poseVec, image, f, identity_w, allIdnOptExp);
+        
+        /*if (flag == false)
+        {
+            cout << "identity crashed" << endl;
+            exit(-1);
+        }*/
         /* create new face based on optimized w_exp and w_idn for pose estimation */
         createAllExpressions(shapeTensor, identity_w, numShapeVerts, avgMultExp);
         linearCombination(numShapeVerts, numExpressions, avgMultExp, w, combinedIdn);
-
+       
         cv::solvePnP(combinedIdn, lmsVec, cameraMatrix, cv::Mat(), rvec, tvec);
         getPose(poseVec, rvec, tvec);
     }
@@ -242,6 +250,10 @@ void visualization3D(int numVerts, std::vector<cv::Point3f> linCombo)
     // Create the default Easy3D viewer.
     // Note: a viewer must be created before creating any drawables.
     easy3d::Viewer viewer("3d visualization");
+
+    easy3d::Camera* cam = viewer.camera();	 // visualized axes at the bottom left of the screen are red(x), green(y), blue(z) 
+    cam->setUpVector(easy3d::vec3(0, 1, 0));
+    cam->setViewDirection(easy3d::vec3(0, 0, -1));
 
     auto surface = new easy3d::TrianglesDrawable("faces");
     surface->update_vertex_buffer(faceVerts);
@@ -366,8 +378,8 @@ void sparse3D(std::vector<cv::Point3f> linCombo)
     easy3d::Viewer viewer("Face Visualization");
 
     easy3d::Camera* cam = viewer.camera();	 // visualized axes at the bottom left of the screen are red(x), green(y), blue(z) 
-    cam->setUpVector(easy3d::vec3(0, -1, 0));
-    cam->setViewDirection(easy3d::vec3(0, 0, 1));
+    cam->setUpVector(easy3d::vec3(0, 1, 0));
+    cam->setViewDirection(easy3d::vec3(0, 0, -1));
 
     easy3d::PointCloud* cloud = new easy3d::PointCloud;
     for (int i = 0; i < faceVerts.size(); i++)
